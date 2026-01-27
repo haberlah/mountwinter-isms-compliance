@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Controls from "@/pages/controls";
 import ControlDetail from "@/pages/control-detail";
+import RecordTest from "@/pages/record-test";
 import Settings from "@/pages/settings";
 
 function Router() {
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/controls" component={Controls} />
       <Route path="/controls/:controlNumber" component={ControlDetail} />
+      <Route path="/controls/:controlNumber/test" component={RecordTest} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

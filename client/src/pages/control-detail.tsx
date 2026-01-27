@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,15 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { ControlDetailSkeleton } from "@/components/loading-skeleton";
 import { StatusBadge, ApplicabilityBadge, FrequencyBadge } from "@/components/status-badge";
 import { useToast } from "@/hooks/use-toast";
@@ -50,7 +41,7 @@ type ControlWithDetails = Control & {
 export default function ControlDetail() {
   const { controlNumber } = useParams<{ controlNumber: string }>();
   const { toast } = useToast();
-  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [, navigate] = useLocation();
 
   const { data: control, isLoading, error } = useQuery<ControlWithDetails>({
     queryKey: ["/api/controls", controlNumber],
@@ -138,11 +129,13 @@ export default function ControlDetail() {
           <p className="text-muted-foreground">{control.category.name}</p>
         </div>
         <div className="flex items-center gap-2">
-          <TestDialog 
-            control={control} 
-            open={testDialogOpen} 
-            onOpenChange={setTestDialogOpen} 
-          />
+          <Button 
+            onClick={() => navigate(`/controls/${controlNumber}/test`)}
+            data-testid="button-record-test"
+          >
+            <ClipboardCheck className="mr-2 h-4 w-4" />
+            Record Test
+          </Button>
         </div>
       </div>
 
@@ -424,192 +417,6 @@ export default function ControlDetail() {
         </div>
       </div>
     </div>
-  );
-}
-
-function TestDialog({ 
-  control, 
-  open, 
-  onOpenChange 
-}: { 
-  control: ControlWithDetails; 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void;
-}) {
-  const { toast } = useToast();
-  const [status, setStatus] = useState<string>("Pass");
-  const [comments, setComments] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<{
-    suggestedStatus: string;
-    confidence: number;
-    reasoning: string;
-  } | null>(null);
-
-  const submitTestMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("POST", "/api/test-runs", {
-        organisationControlId: control.organisationControl?.id,
-        status,
-        comments,
-        aiAnalysis: aiAnalysis?.reasoning,
-        aiSuggestedStatus: aiAnalysis?.suggestedStatus,
-        aiConfidence: aiAnalysis?.confidence,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/controls", control.controlNumber] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/test-runs"] });
-      toast({
-        title: "Test Recorded",
-        description: "Your test result has been saved to the audit trail.",
-      });
-      onOpenChange(false);
-      setStatus("Pass");
-      setComments("");
-      setAiAnalysis(null);
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to save test result. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const analyzeResponseMutation = useMutation({
-    mutationFn: async () => {
-      setIsAnalyzing(true);
-      const res = await apiRequest("POST", `/api/controls/${control.controlNumber}/analyze`, {
-        comments,
-      });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setAiAnalysis(data);
-      if (data.suggestedStatus) {
-        setStatus(data.suggestedStatus);
-      }
-      setIsAnalyzing(false);
-    },
-    onError: (error: any) => {
-      const isConfigError = error?.message?.includes("502") || error?.message?.includes("configuration");
-      toast({
-        title: "Analysis Failed",
-        description: isConfigError 
-          ? "AI service is not configured. Please contact your administrator."
-          : "AI analysis could not be completed.",
-        variant: "destructive",
-      });
-      setIsAnalyzing(false);
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button data-testid="button-record-test">
-          <ClipboardCheck className="mr-2 h-4 w-4" />
-          Record Test
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Record Test Result</DialogTitle>
-          <DialogDescription>
-            {control.controlNumber} - {control.name}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="comments">Test Comments & Evidence</Label>
-            <Textarea
-              id="comments"
-              placeholder="Describe your testing methodology, evidence reviewed, and findings..."
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              rows={6}
-              data-testid="textarea-test-comments"
-            />
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              onClick={() => analyzeResponseMutation.mutate()}
-              disabled={isAnalyzing || !comments.trim()}
-              data-testid="button-analyze-ai"
-            >
-              {isAnalyzing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Brain className="mr-2 h-4 w-4" />
-              )}
-              Analyze with AI
-            </Button>
-          </div>
-
-          {aiAnalysis && (
-            <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="pt-4">
-                <div className="flex items-start gap-3">
-                  <Brain className="h-5 w-5 text-primary mt-0.5" />
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">AI Recommendation</span>
-                      <span className="text-xs text-muted-foreground">
-                        {(aiAnalysis.confidence * 100).toFixed(0)}% confidence
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{aiAnalysis.reasoning}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs">Suggested:</span>
-                      <StatusBadge status={aiAnalysis.suggestedStatus as any} size="sm" />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="status">Final Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger data-testid="select-test-status">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Pass">Pass</SelectItem>
-                <SelectItem value="PassPrevious">Pass (Previous Testing)</SelectItem>
-                <SelectItem value="Fail">Fail</SelectItem>
-                <SelectItem value="Blocked">Blocked</SelectItem>
-                <SelectItem value="NotAttempted">Not Attempted</SelectItem>
-                <SelectItem value="ContinualImprovement">Continual Improvement</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={() => submitTestMutation.mutate()}
-            disabled={submitTestMutation.isPending}
-            data-testid="button-submit-test"
-          >
-            {submitTestMutation.isPending && (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            )}
-            Save Test Result
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
