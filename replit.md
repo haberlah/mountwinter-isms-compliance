@@ -2,6 +2,16 @@
 
 ## Recent Changes (January 2026)
 
+### Prompt 8 - Compliance Dashboard (Completed)
+- Summary stats cards: Total Controls (100), Passed, Failed, Not Tested with icons
+- Compliance Status radial chart: Shows compliance % with color coding (green >80%, amber 50-80%, red <50%)
+- Questionnaire Progress radial chart: Shows completion % with controls complete/partial/not started counts
+- Due Soon list: Controls due in next 30 days with urgency badges (red=overdue, amber=≤7 days)
+- Recent Activity list: Last 10 test runs with relative timestamps and status badges
+- Category Breakdown chart: Stacked horizontal bar chart showing passed/failed/not tested by category
+- API endpoint: GET /api/dashboard returns aggregated statistics
+- Recharts library used for all data visualizations
+
 ### UX Refinements (Completed)
 - PersonaSelector consolidated: 4 buttons (Auditor, Advisor, Analyst, All) replacing separate ViewModeToggle
 - "All" mode groups questions by persona with section headings; specific persona filters to that persona only
