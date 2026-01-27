@@ -1,0 +1,156 @@
+[OBJECTIVE]
+Build the compliance dashboard with statistics, insights, and questionnaire progress.
+
+[REQUIREMENTS]
+1. Summary statistics cards (total, passed, failed, etc.)
+2. Compliance percentage gauge/chart
+3. Questionnaire completion progress
+4. Controls due soon list
+5. Recent test activity
+6. Category breakdown chart
+7. Install Recharts library: `npm install recharts`
+
+[TECHNICAL DETAILS]
+
+API endpoint:
+- GET /api/dashboard - returns all dashboard data
+
+Dashboard layout (2-column grid on desktop, single column on mobile):
+
+### Row 1: Key Metrics (4 cards)
+
+1. Summary Cards (top row):
+- Total Controls: 100 (with "X applicable" subtitle)
+- Passed: X (green) — includes Pass and PassPrevious
+- Failed: X (red)
+- Not Attempted: X (gray)
+
+### Row 2: Progress Indicators (2 cards)
+
+2. Compliance Gauge (left):
+- Circular/radial progress showing percentage
+- Large percentage number in center
+- Color: Green if >80%, yellow 50-80%, red <50%
+- Subtitle: "X of Y applicable controls passed"
+
+3. Questionnaire Progress (right):
+- Circular/radial progress showing completion percentage
+- Calculate: (total questions answered / total questions) * 100
+- Subtitle: "X of 503 questions answered"
+- Secondary stats below:
+  - Controls with complete responses: X/100
+  - Controls with partial responses: X/100
+  - Controls not started: X/100
+
+### Row 3: Lists (2 columns)
+
+4. Due Soon (left, next 30 days):
+- Table: Control #, Name, Due Date, Days Until Due
+- Based on next_due_date in organisation_controls
+- Max 10 items, sorted by due date (soonest first)
+- Color code: Red if overdue, amber if <7 days, default otherwise
+- Click row to navigate to control
+- Empty state: "No controls due in the next 30 days"
+
+5. Recent Activity (right):
+- Last 10 test runs across all controls
+- Show: Date (relative, e.g., "2 hours ago"), Control #, Status badge
+- Click row to navigate to control
+- Empty state: "No tests recorded yet"
+
+### Row 4: Charts (full width)
+
+6. Category Breakdown:
+- Stacked horizontal bar chart (one bar per category)
+- Shows pass/fail/not attempted counts per category
+- Categories: ISMS Requirements, Organisational, People, Physical, Technological
+- Use Recharts BarChart with stacked bars
+- Legend showing Pass (green), Fail (red), Not Attempted (gray)
+- Click category to filter controls list (optional enhancement)
+
+[API RESPONSE STRUCTURE]
+```typescript
+interface DashboardData {
+  summary: {
+    total_controls: number;
+    applicable_controls: number;
+    passed: number;
+    failed: number;
+    not_attempted: number;
+    blocked: number;
+    continual_improvement: number;
+  };
+  compliance: {
+    percentage: number;
+    passed_count: number;
+    applicable_count: number;
+  };
+  questionnaire_progress: {
+    total_questions: number;           // 503
+    answered_questions: number;
+    percentage: number;
+    controls_complete: number;         // All questions answered
+    controls_partial: number;          // Some questions answered
+    controls_not_started: number;      // No questions answered
+  };
+  due_soon: Array<{
+    control_number: string;
+    control_name: string;
+    due_date: string;
+    days_until_due: number;
+    last_tested: string | null;
+  }>;
+  recent_activity: Array<{
+    test_date: string;
+    control_number: string;
+    control_name: string;
+    status: string;
+    tester_name: string;
+  }>;
+  category_breakdown: Array<{
+    category_name: string;
+    passed: number;
+    failed: number;
+    not_attempted: number;
+  }>;
+}
+```
+
+[CALCULATIONS]
+
+Compliance %:
+- Formula: (Passed / Applicable Controls) * 100
+- Exclude non-applicable controls from calculation
+- "Passed" includes both Pass and PassPrevious statuses
+
+Questionnaire Progress:
+- Count all non-empty responses in implementation_responses.responses array
+- Sum across all organisation_controls records
+- Total possible: 503 questions
+
+Days Until Due:
+- Calculate: next_due_date - today
+- Negative values = overdue
+
+[STYLING]
+
+Use existing Linear-style design:
+- Cards: white bg, shadow-sm, rounded-lg
+- Progress circles: Use Recharts RadialBarChart or custom SVG
+- Status colors: green-500 (pass), red-500 (fail), zinc-400 (not attempted)
+- Overdue highlighting: red-100 bg with red-700 text
+- Due soon (≤7 days): amber-100 bg with amber-700 text
+
+[ACCEPTANCE CRITERIA]
+- [ ] All summary cards show correct counts
+- [ ] Compliance percentage calculated correctly
+- [ ] Questionnaire progress shows accurate completion stats
+- [ ] Due soon list shows controls sorted by date
+- [ ] Overdue controls highlighted in red
+- [ ] Recent activity shows latest 10 tests
+- [ ] Category chart renders with correct data
+- [ ] Empty states display helpful messages
+- [ ] Dashboard loads quickly (<2 seconds)
+- [ ] Responsive layout on mobile
+
+**Create checkpoint: "Dashboard"**
