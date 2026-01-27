@@ -120,8 +120,10 @@ export default function Settings() {
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
-          <SettingsIcon className="h-7 w-7" />
+          <SettingsIcon className="h-6 w-6" />
           <h1 className="text-2xl font-semibold" data-testid="heading-settings">Settings</h1>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-sm text-muted-foreground">Application configuration and data management</span>
         </div>
 
         {/* API Configuration */}

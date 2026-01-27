@@ -11,6 +11,7 @@ export const testStatusEnum = pgEnum("test_status", ["Pass", "PassPrevious", "Fa
 export const interactionTypeEnum = pgEnum("interaction_type", ["questionnaire_generation", "response_review", "test_analysis", "ontology_load"]);
 export const aiContextScopeEnum = pgEnum("ai_context_scope", ["current_only", "last_3", "all_history"]);
 export const personaEnum = pgEnum("persona", ["Auditor", "Advisor", "Analyst"]);
+export const riskAppetiteEnum = pgEnum("risk_appetite", ["Conservative", "Moderate", "Aggressive"]);
 
 // Persona types
 export const personaValues = ['Auditor', 'Advisor', 'Analyst'] as const;
@@ -137,6 +138,24 @@ export const aiInteractions = pgTable("ai_interactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Organisation Profile (for AI context and personalization)
+export const organisationProfile = pgTable("organisation_profile", {
+  id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").default(1).notNull(),
+  companyName: text("company_name"),
+  industry: text("industry"),
+  companySize: text("company_size"),
+  techStack: text("tech_stack"),
+  deploymentModel: text("deployment_model"),
+  regulatoryRequirements: jsonb("regulatory_requirements").$type<string[]>().default([]),
+  dataClassificationLevels: jsonb("data_classification_levels").$type<string[]>().default([]),
+  riskAppetite: riskAppetiteEnum("risk_appetite").default("Moderate"),
+  additionalContext: text("additional_context"),
+  hideNonApplicableControls: boolean("hide_non_applicable_controls").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   organisationControls: many(organisationControls),
@@ -202,6 +221,7 @@ export const insertControlSchema = createInsertSchema(controls).omit({ id: true 
 export const insertOrganisationControlSchema = createInsertSchema(organisationControls).omit({ id: true });
 export const insertTestRunSchema = createInsertSchema(testRuns).omit({ id: true, testDate: true, createdAt: true });
 export const insertAiInteractionSchema = createInsertSchema(aiInteractions).omit({ id: true, createdAt: true });
+export const insertOrganisationProfileSchema = createInsertSchema(organisationProfile).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -221,6 +241,18 @@ export type InsertTestRun = z.infer<typeof insertTestRunSchema>;
 
 export type AiInteraction = typeof aiInteractions.$inferSelect;
 export type InsertAiInteraction = z.infer<typeof insertAiInteractionSchema>;
+
+export type OrganisationProfile = typeof organisationProfile.$inferSelect;
+export type InsertOrganisationProfile = z.infer<typeof insertOrganisationProfileSchema>;
+export type RiskAppetite = 'Conservative' | 'Moderate' | 'Aggressive';
+
+export type ControlApplicability = {
+  controlId: number;
+  controlNumber: string;
+  name: string;
+  category: string;
+  isApplicable: boolean;
+};
 
 // Extended types for API responses
 export type ControlWithCategory = Control & {

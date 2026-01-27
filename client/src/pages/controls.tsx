@@ -186,11 +186,12 @@ export default function Controls() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b border-border p-6">
-        <h1 className="text-2xl font-semibold" data-testid="heading-controls">Controls</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage and track ISO 27001:2022 security controls
-        </p>
+      <div className="border-b border-border px-6 py-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold" data-testid="heading-controls">Controls</h1>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-sm text-muted-foreground">Manage and track ISO 27001:2022 security controls</span>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-6">

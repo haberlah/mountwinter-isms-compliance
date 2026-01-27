@@ -727,5 +727,78 @@ export async function registerRoutes(
     }
   });
 
+  // Organisation Profile endpoints
+  app.get("/api/settings/profile", async (req, res) => {
+    try {
+      const profile = await storage.getOrganisationProfile();
+      res.json(profile || null);
+    } catch (error) {
+      console.error("Error fetching organisation profile:", error);
+      res.status(500).json({ error: "Failed to fetch organisation profile" });
+    }
+  });
+
+  app.put("/api/settings/profile", async (req, res) => {
+    try {
+      const {
+        companyName,
+        industry,
+        companySize,
+        techStack,
+        deploymentModel,
+        regulatoryRequirements,
+        dataClassificationLevels,
+        riskAppetite,
+        additionalContext,
+        hideNonApplicableControls,
+      } = req.body;
+
+      const profile = await storage.upsertOrganisationProfile({
+        companyName: companyName || null,
+        industry: industry || null,
+        companySize: companySize || null,
+        techStack: techStack || null,
+        deploymentModel: deploymentModel || null,
+        regulatoryRequirements: regulatoryRequirements || [],
+        dataClassificationLevels: dataClassificationLevels || [],
+        riskAppetite: riskAppetite || "Moderate",
+        additionalContext: additionalContext || null,
+        hideNonApplicableControls: hideNonApplicableControls ?? false,
+      });
+
+      res.json(profile);
+    } catch (error) {
+      console.error("Error updating organisation profile:", error);
+      res.status(500).json({ error: "Failed to update organisation profile" });
+    }
+  });
+
+  // Control Applicability endpoints
+  app.get("/api/controls/applicability", async (req, res) => {
+    try {
+      const applicability = await storage.getControlsApplicability();
+      res.json(applicability);
+    } catch (error) {
+      console.error("Error fetching control applicability:", error);
+      res.status(500).json({ error: "Failed to fetch control applicability" });
+    }
+  });
+
+  app.patch("/api/controls/applicability", async (req, res) => {
+    try {
+      const { updates } = req.body;
+      
+      if (!Array.isArray(updates)) {
+        return res.status(400).json({ error: "Updates must be an array" });
+      }
+
+      const updatedCount = await storage.updateControlsApplicability(updates);
+      res.json({ updated: updatedCount });
+    } catch (error) {
+      console.error("Error updating control applicability:", error);
+      res.status(500).json({ error: "Failed to update control applicability" });
+    }
+  });
+
   return httpServer;
 }

@@ -166,23 +166,16 @@ function QuestionnaireProgress({ progress }: {
             <span className="text-xs text-muted-foreground">complete</span>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground mt-2" data-testid="text-questionnaire-summary">
-          {answeredQuestions} of {totalQuestions} questions answered
+        <p className="text-sm font-medium mt-2" data-testid="text-controls-summary">
+          Controls: <span className="text-green-600 dark:text-green-400" data-testid="text-controls-complete">{controlsComplete}</span> complete
+          <span className="text-muted-foreground mx-1">•</span>
+          <span className="text-amber-600 dark:text-amber-400" data-testid="text-controls-partial">{controlsPartial}</span> partial
+          <span className="text-muted-foreground mx-1">•</span>
+          <span className="text-zinc-500" data-testid="text-controls-not-started">{controlsNotStarted}</span> not started
         </p>
-        <div className="flex gap-4 mt-3 text-xs">
-          <div className="text-center">
-            <p className="font-semibold text-green-600 dark:text-green-400" data-testid="text-controls-complete">{controlsComplete}</p>
-            <p className="text-muted-foreground">Complete</p>
-          </div>
-          <div className="text-center">
-            <p className="font-semibold text-amber-600 dark:text-amber-400" data-testid="text-controls-partial">{controlsPartial}</p>
-            <p className="text-muted-foreground">Partial</p>
-          </div>
-          <div className="text-center">
-            <p className="font-semibold text-zinc-500" data-testid="text-controls-not-started">{controlsNotStarted}</p>
-            <p className="text-muted-foreground">Not Started</p>
-          </div>
-        </div>
+        <p className="text-xs text-muted-foreground mt-1" data-testid="text-questionnaire-summary">
+          Question coverage: {answeredQuestions} / {totalQuestions} answered
+        </p>
       </CardContent>
     </Card>
   );
@@ -414,11 +407,12 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="border-b border-border p-6">
-          <h1 className="text-2xl font-semibold" data-testid="heading-dashboard">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            ISMS Compliance Overview
-          </p>
+        <div className="border-b border-border px-6 py-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold" data-testid="heading-dashboard">Dashboard</h1>
+            <span className="text-muted-foreground">|</span>
+            <span className="text-sm text-muted-foreground">ISMS Compliance Overview</span>
+          </div>
         </div>
         <div className="flex-1 overflow-auto p-6">
           <DashboardSkeleton />
@@ -430,8 +424,12 @@ export default function Dashboard() {
   if (error || !data) {
     return (
       <div className="flex flex-col h-full">
-        <div className="border-b border-border p-6">
-          <h1 className="text-2xl font-semibold" data-testid="heading-dashboard">Dashboard</h1>
+        <div className="border-b border-border px-6 py-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold" data-testid="heading-dashboard">Dashboard</h1>
+            <span className="text-muted-foreground">|</span>
+            <span className="text-sm text-muted-foreground">ISMS Compliance Overview</span>
+          </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
@@ -446,11 +444,12 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b border-border p-6">
-        <h1 className="text-2xl font-semibold" data-testid="heading-dashboard">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          ISMS Compliance Overview
-        </p>
+      <div className="border-b border-border px-6 py-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold" data-testid="heading-dashboard">Dashboard</h1>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-sm text-muted-foreground">ISMS Compliance Overview</span>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-6">

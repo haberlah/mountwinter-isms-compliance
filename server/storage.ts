@@ -1,13 +1,14 @@
 import { 
-  users, controlCategories, controls, organisationControls, testRuns, aiInteractions,
+  users, controlCategories, controls, organisationControls, testRuns, aiInteractions, organisationProfile,
   type User, type InsertUser, 
   type ControlCategory, type InsertControlCategory,
   type Control, type InsertControl,
   type OrganisationControl, type InsertOrganisationControl,
   type TestRun, type InsertTestRun,
   type AiInteraction, type InsertAiInteraction,
+  type OrganisationProfile, type InsertOrganisationProfile,
   type DashboardStats, type ControlWithDetails, type TestRunWithDetails,
-  type ControlsStats, type ControlWithLatestTest
+  type ControlsStats, type ControlWithLatestTest, type ControlApplicability
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, isNull, count, asc } from "drizzle-orm";
@@ -51,6 +52,14 @@ export interface IStorage {
 
   // Dashboard
   getDashboardStats(): Promise<DashboardStats>;
+
+  // Organisation Profile
+  getOrganisationProfile(): Promise<OrganisationProfile | undefined>;
+  upsertOrganisationProfile(profile: Partial<InsertOrganisationProfile>): Promise<OrganisationProfile>;
+  
+  // Control Applicability
+  getControlsApplicability(): Promise<ControlApplicability[]>;
+  updateControlsApplicability(updates: { controlId: number; isApplicable: boolean }[]): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -514,6 +523,79 @@ export class DatabaseStorage implements IStorage {
       recentActivity,
       recentTestRuns,
     };
+  }
+
+  // Organisation Profile
+  async getOrganisationProfile(): Promise<OrganisationProfile | undefined> {
+    const [profile] = await db.select().from(organisationProfile).where(eq(organisationProfile.organisationId, 1));
+    return profile || undefined;
+  }
+
+  async upsertOrganisationProfile(profile: Partial<InsertOrganisationProfile>): Promise<OrganisationProfile> {
+    const existing = await this.getOrganisationProfile();
+    
+    if (existing) {
+      const [updated] = await db
+        .update(organisationProfile)
+        .set({
+          ...profile,
+          updatedAt: new Date(),
+        })
+        .where(eq(organisationProfile.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(organisationProfile)
+        .values({
+          organisationId: 1,
+          ...profile,
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  // Control Applicability
+  async getControlsApplicability(): Promise<ControlApplicability[]> {
+    const result = await db
+      .select({
+        controlId: controls.id,
+        controlNumber: controls.controlNumber,
+        name: controls.name,
+        category: controlCategories.name,
+        isApplicable: organisationControls.isApplicable,
+      })
+      .from(controls)
+      .innerJoin(controlCategories, eq(controls.categoryId, controlCategories.id))
+      .innerJoin(organisationControls, eq(controls.id, organisationControls.controlId))
+      .orderBy(asc(controlCategories.sortOrder), asc(controls.controlNumber));
+
+    return result.map(row => ({
+      controlId: row.controlId,
+      controlNumber: row.controlNumber,
+      name: row.name,
+      category: row.category,
+      isApplicable: row.isApplicable,
+    }));
+  }
+
+  async updateControlsApplicability(updates: { controlId: number; isApplicable: boolean }[]): Promise<number> {
+    let updatedCount = 0;
+    
+    for (const update of updates) {
+      const result = await db
+        .update(organisationControls)
+        .set({ isApplicable: update.isApplicable })
+        .where(eq(organisationControls.controlId, update.controlId))
+        .returning();
+      
+      if (result.length > 0) {
+        updatedCount++;
+      }
+    }
+    
+    return updatedCount;
   }
 }
 
