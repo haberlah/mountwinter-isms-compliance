@@ -34,7 +34,16 @@ function PageTitle() {
     "/settings": "Settings",
   };
   
-  const title = titles[location] || "Page Not Found";
+  let title = titles[location];
+  if (!title) {
+    if (location.startsWith("/controls/") && location.endsWith("/test")) {
+      title = "Record Test";
+    } else if (location.startsWith("/controls/")) {
+      title = "Control Detail";
+    } else {
+      title = "Page Not Found";
+    }
+  }
   
   return (
     <h1 className="text-lg font-semibold tracking-tight" data-testid="text-page-title">

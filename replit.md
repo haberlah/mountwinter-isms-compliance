@@ -2,6 +2,17 @@
 
 ## Recent Changes (January 2026)
 
+### Prompt 5 - Test Recording (Completed)
+- Test recording form page at /controls/:controlNumber/test
+- Status dropdown with 6 options (Pass, PassPrevious, Fail, Blocked, NotAttempted, ContinualImprovement)
+- Comments textarea for observations and evidence
+- Submit creates immutable test_run record via POST /api/test-runs
+- No UPDATE/DELETE endpoints for test_runs (immutability enforced)
+- Redirect to control detail page after successful save
+- tester_user_id automatically set to current user (1)
+- Control reference card shows description and last test result
+- Cancel and Record Test buttons in form
+
 ### Prompt 4 - Control Detail & Settings (Completed)
 - Enhanced control detail page with tabbed interface (AI Questionnaire, Test History, Implementation)
 - Control Settings sidebar displaying current configuration (applicability, frequency, owner, start quarter)
