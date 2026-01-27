@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,20 +16,23 @@ import {
 } from "@/components/ui/select";
 import { ControlDetailSkeleton } from "@/components/loading-skeleton";
 import { StatusBadge, ApplicabilityBadge, FrequencyBadge } from "@/components/status-badge";
+import { PersonaSelector } from "@/components/PersonaSelector";
+import { QuestionCard } from "@/components/QuestionCard";
+import { ProgressSection } from "@/components/ProgressSection";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   ArrowLeft, 
-  RefreshCw, 
   Brain, 
   ClipboardCheck, 
   History,
   AlertTriangle,
   Loader2,
-  Sparkles,
-  FileText
+  FileText,
+  Save
 } from "lucide-react";
-import type { Control, ControlCategory, OrganisationControl, TestRun } from "@shared/schema";
+import type { Control, ControlCategory, OrganisationControl, TestRun, Persona, OntologyQuestion, ImplementationResponses, QuestionResponse, ControlQuestionnaire } from "@shared/schema";
 import { format } from "date-fns";
 
 type ControlWithDetails = Control & {
@@ -38,6 +41,25 @@ type ControlWithDetails = Control & {
   recentTestRuns: TestRun[];
 };
 
+function useDebouncedCallback<T extends (...args: any[]) => void>(
+  callback: T,
+  delay: number
+): T {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  return useCallback(
+    ((...args: Parameters<T>) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => {
+        callback(...args);
+      }, delay);
+    }) as T,
+    [callback, delay]
+  );
+}
+
 export default function ControlDetail() {
   const { controlNumber } = useParams<{ controlNumber: string }>();
   const { toast } = useToast();
@@ -45,29 +67,6 @@ export default function ControlDetail() {
 
   const { data: control, isLoading, error } = useQuery<ControlWithDetails>({
     queryKey: ["/api/controls", controlNumber],
-  });
-
-  const generateQuestionnaireMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("POST", `/api/controls/${controlNumber}/generate-questionnaire`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/controls", controlNumber] });
-      toast({
-        title: "Questionnaire Generated",
-        description: "AI has generated assessment questions for this control.",
-      });
-    },
-    onError: (error: any) => {
-      const isConfigError = error?.message?.includes("502") || error?.message?.includes("configuration");
-      toast({
-        title: "Generation Failed",
-        description: isConfigError 
-          ? "AI service is not configured. Please contact your administrator."
-          : "Failed to generate questionnaire. Please try again.",
-        variant: "destructive",
-      });
-    },
   });
 
   if (isLoading) {
@@ -193,70 +192,21 @@ export default function ControlDetail() {
             </TabsList>
 
             <TabsContent value="questionnaire" className="mt-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between gap-2">
-                  <div>
-                    <CardTitle>Assessment Questionnaire</CardTitle>
-                    <CardDescription>
-                      {hasQuestionnaire
-                        ? `Generated ${control.questionnaireGeneratedAt ? format(new Date(control.questionnaireGeneratedAt), "MMM d, yyyy") : "previously"}`
-                        : "AI-generated questions to assess this control"}
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant={hasQuestionnaire ? "outline" : "default"}
-                    onClick={() => generateQuestionnaireMutation.mutate()}
-                    disabled={generateQuestionnaireMutation.isPending}
-                    data-testid="button-generate-questionnaire"
-                  >
-                    {generateQuestionnaireMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-2 h-4 w-4" />
-                    )}
-                    {hasQuestionnaire ? "Regenerate" : "Generate"}
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {hasQuestionnaire ? (
-                    <div className="space-y-4">
-                      {control.aiQuestionnaire?.questions.map((q, index) => (
-                        <div
-                          key={q.id}
-                          className="p-4 rounded-lg border bg-muted/30"
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-medium shrink-0">
-                              {index + 1}
-                            </span>
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{q.question}</p>
-                              {q.guidance && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {q.guidance}
-                                </p>
-                              )}
-                              <div className="mt-2">
-                                <span className="text-xs px-2 py-0.5 rounded bg-secondary text-secondary-foreground">
-                                  {q.type === "boolean" ? "Yes/No" : q.type === "scale" ? "Rating Scale" : "Text Response"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
+              {hasQuestionnaire ? (
+                <QuestionnaireTab control={control} orgControl={orgControl} />
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <div className="text-center">
                       <Brain className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                      <p className="text-lg font-medium mb-2">No questionnaire yet</p>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Generate AI-powered assessment questions for this control
+                      <p className="text-lg font-medium mb-2">No questionnaire available</p>
+                      <p className="text-sm text-muted-foreground">
+                        This control does not have a questionnaire loaded
                       </p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="history" className="mt-4">
@@ -323,13 +273,15 @@ export default function ControlDetail() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {orgControl?.implementationResponses && Object.keys(orgControl.implementationResponses).length > 0 ? (
+                  {orgControl?.implementationResponses?.responses && orgControl.implementationResponses.responses.length > 0 ? (
                     <div className="space-y-4">
                       {control.aiQuestionnaire?.questions?.map((q, index) => {
-                        const response = orgControl.implementationResponses?.[q.id];
+                        const response = orgControl.implementationResponses?.responses.find(
+                          (r) => r.question_id === q.question_id
+                        );
                         return (
                           <div
-                            key={q.id}
+                            key={q.question_id}
                             className="p-4 rounded-lg border bg-muted/30"
                           >
                             <div className="flex items-start gap-3">
@@ -340,13 +292,20 @@ export default function ControlDetail() {
                                 <p className="font-medium text-sm">{q.question}</p>
                                 <div className="mt-2 p-3 bg-background rounded border">
                                   <p className="text-sm text-muted-foreground">
-                                    {response !== undefined 
-                                      ? (typeof response === 'boolean' 
-                                        ? (response ? 'Yes' : 'No') 
-                                        : String(response))
+                                    {response?.response_text 
+                                      ? response.response_text
                                       : <span className="italic">No response recorded</span>
                                     }
                                   </p>
+                                  {response?.evidence_references && response.evidence_references.length > 0 && (
+                                    <div className="mt-2 flex gap-1 flex-wrap">
+                                      {response.evidence_references.map((ref, i) => (
+                                        <span key={i} className="text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
+                                          {ref}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -364,7 +323,7 @@ export default function ControlDetail() {
                       <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
                       <p className="text-lg font-medium mb-2">No implementation responses</p>
                       <p className="text-sm text-muted-foreground">
-                        Responses will be saved when you complete a test assessment
+                        Complete the questionnaire in the AI Questionnaire tab to save responses
                       </p>
                     </div>
                   )}
@@ -416,6 +375,328 @@ export default function ControlDetail() {
           <ControlSettingsCard control={control} orgControl={orgControl} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuestionnaireTab({ 
+  control, 
+  orgControl 
+}: { 
+  control: ControlWithDetails; 
+  orgControl: OrganisationControl | null;
+}) {
+  const { toast } = useToast();
+  const questionnaire = control.aiQuestionnaire as ControlQuestionnaire;
+  const questions = questionnaire?.questions || [];
+  
+  const [selectedPersona, setSelectedPersona] = useState<Persona>(
+    (orgControl?.selectedPersona as Persona) || "Auditor"
+  );
+  const [viewMode, setViewMode] = useState<"persona" | "all">("persona");
+  const [saveStatuses, setSaveStatuses] = useState<Record<number, "idle" | "saving" | "saved" | "error">>({});
+  const [localResponses, setLocalResponses] = useState<Record<number, QuestionResponse>>({});
+
+  useEffect(() => {
+    if (orgControl?.implementationResponses?.responses) {
+      const responseMap: Record<number, QuestionResponse> = {};
+      for (const r of orgControl.implementationResponses.responses) {
+        responseMap[r.question_id] = r;
+      }
+      setLocalResponses(responseMap);
+    }
+  }, [orgControl?.implementationResponses]);
+
+  const questionCounts = useMemo(() => {
+    const counts = { Auditor: 0, Advisor: 0, Analyst: 0 };
+    for (const q of questions) {
+      if (q.primary_persona && counts[q.primary_persona] !== undefined) {
+        counts[q.primary_persona]++;
+      }
+    }
+    return counts;
+  }, [questions]);
+
+  const filteredQuestions = useMemo(() => {
+    if (viewMode === "all") return questions;
+    return questions.filter((q) => q.primary_persona === selectedPersona);
+  }, [questions, viewMode, selectedPersona]);
+
+  const groupedQuestions = useMemo(() => {
+    if (viewMode !== "all") return null;
+    const groups: Record<Persona, OntologyQuestion[]> = {
+      Auditor: [],
+      Advisor: [],
+      Analyst: [],
+    };
+    for (const q of questions) {
+      if (q.primary_persona && groups[q.primary_persona]) {
+        groups[q.primary_persona].push(q);
+      }
+    }
+    return groups;
+  }, [questions, viewMode]);
+
+  const progressData = useMemo(() => {
+    const answeredIds = new Set(
+      Object.values(localResponses)
+        .filter((r) => r.response_text?.trim())
+        .map((r) => r.question_id)
+    );
+
+    const byPersona: Record<Persona, { total: number; answered: number }> = {
+      Auditor: { total: 0, answered: 0 },
+      Advisor: { total: 0, answered: 0 },
+      Analyst: { total: 0, answered: 0 },
+    };
+
+    for (const q of questions) {
+      if (q.primary_persona && byPersona[q.primary_persona]) {
+        byPersona[q.primary_persona].total++;
+        if (answeredIds.has(q.question_id)) {
+          byPersona[q.primary_persona].answered++;
+        }
+      }
+    }
+
+    return {
+      total: questions.length,
+      answered: answeredIds.size,
+      byPersona,
+    };
+  }, [questions, localResponses]);
+
+  const personaMutation = useMutation({
+    mutationFn: async (persona: Persona) => {
+      return apiRequest("PATCH", `/api/organisation-controls/${control.id}/persona`, { persona });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/controls", control.controlNumber] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update persona selection.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const responseMutation = useMutation({
+    mutationFn: async (data: { question_id: number; response_text: string; evidence_references: string[] }) => {
+      return apiRequest("PATCH", `/api/organisation-controls/${control.id}/response`, data);
+    },
+    onSuccess: (_, variables) => {
+      setSaveStatuses((prev) => ({ ...prev, [variables.question_id]: "saved" }));
+      setTimeout(() => {
+        setSaveStatuses((prev) => ({ ...prev, [variables.question_id]: "idle" }));
+      }, 2000);
+      queryClient.invalidateQueries({ queryKey: ["/api/controls", control.controlNumber] });
+    },
+    onError: (_, variables) => {
+      setSaveStatuses((prev) => ({ ...prev, [variables.question_id]: "error" }));
+    },
+  });
+
+  const evidenceMutation = useMutation({
+    mutationFn: async (data: { questionId: number; filename: string }) => {
+      return apiRequest(
+        "PATCH", 
+        `/api/organisation-controls/${control.id}/response/${data.questionId}/evidence`,
+        { filename: data.filename }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/controls", control.controlNumber] });
+      toast({
+        title: "Evidence Added",
+        description: "Evidence reference has been saved.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add evidence reference.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const debouncedSave = useDebouncedCallback(
+    (questionId: number, responseText: string, evidenceRefs: string[]) => {
+      responseMutation.mutate({
+        question_id: questionId,
+        response_text: responseText,
+        evidence_references: evidenceRefs,
+      });
+    },
+    2000
+  );
+
+  const handleResponseChange = useCallback(
+    (questionId: number, responseText: string) => {
+      setSaveStatuses((prev) => ({ ...prev, [questionId]: "saving" }));
+      
+      setLocalResponses((prev) => ({
+        ...prev,
+        [questionId]: {
+          ...prev[questionId],
+          question_id: questionId,
+          response_text: responseText,
+          evidence_references: prev[questionId]?.evidence_references || [],
+          last_updated: new Date().toISOString(),
+          answered_by_user_id: 1,
+        },
+      }));
+
+      debouncedSave(
+        questionId, 
+        responseText, 
+        localResponses[questionId]?.evidence_references || []
+      );
+    },
+    [debouncedSave, localResponses]
+  );
+
+  const handleEvidenceAdd = useCallback(
+    (questionId: number, filename: string) => {
+      evidenceMutation.mutate({ questionId, filename });
+      
+      setLocalResponses((prev) => ({
+        ...prev,
+        [questionId]: {
+          ...prev[questionId],
+          question_id: questionId,
+          response_text: prev[questionId]?.response_text || "",
+          evidence_references: [...(prev[questionId]?.evidence_references || []), filename],
+          last_updated: new Date().toISOString(),
+          answered_by_user_id: 1,
+        },
+      }));
+    },
+    [evidenceMutation]
+  );
+
+  const handlePersonaChange = (persona: Persona) => {
+    setSelectedPersona(persona);
+    personaMutation.mutate(persona);
+  };
+
+  const handleSaveAll = () => {
+    for (const [questionId, response] of Object.entries(localResponses)) {
+      if (response.response_text?.trim()) {
+        responseMutation.mutate({
+          question_id: Number(questionId),
+          response_text: response.response_text,
+          evidence_references: response.evidence_references,
+        });
+      }
+    }
+    toast({
+      title: "Saving All",
+      description: "All responses are being saved.",
+    });
+  };
+
+  const renderQuestionList = (questionsToRender: OntologyQuestion[], startIndex: number = 0) => (
+    <div className="space-y-4">
+      {questionsToRender.map((q, index) => (
+        <QuestionCard
+          key={q.question_id}
+          question={q}
+          questionNumber={startIndex + index + 1}
+          response={localResponses[q.question_id]}
+          persona={selectedPersona}
+          onResponseChange={handleResponseChange}
+          onEvidenceAdd={handleEvidenceAdd}
+          saveStatus={saveStatuses[q.question_id] || "idle"}
+        />
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle>Assessment Questionnaire</CardTitle>
+            <CardDescription>
+              {questionnaire?.metadata?.total_questions || questions.length} questions loaded from ontology
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSaveAll}
+            data-testid="button-save-all"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Save All
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ProgressSection
+            total={progressData.total}
+            answered={progressData.answered}
+            byPersona={progressData.byPersona}
+          />
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <PersonaSelector
+              selected={selectedPersona}
+              questionCounts={questionCounts}
+              onChange={handlePersonaChange}
+              disabled={personaMutation.isPending}
+            />
+            <ViewModeToggle
+              viewMode={viewMode}
+              personaCount={filteredQuestions.length}
+              totalCount={questions.length}
+              onChange={setViewMode}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {viewMode === "persona" ? (
+        filteredQuestions.length > 0 ? (
+          renderQuestionList(filteredQuestions)
+        ) : (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-muted-foreground">
+                No questions for the {selectedPersona} persona
+              </p>
+            </CardContent>
+          </Card>
+        )
+      ) : (
+        groupedQuestions && (
+          <div className="space-y-6">
+            {(["Auditor", "Advisor", "Analyst"] as Persona[]).map((persona) => {
+              const personaQuestions = groupedQuestions[persona];
+              if (personaQuestions.length === 0) return null;
+
+              const startIndex = ["Auditor", "Advisor", "Analyst"]
+                .slice(0, ["Auditor", "Advisor", "Analyst"].indexOf(persona))
+                .reduce((acc, p) => acc + groupedQuestions[p as Persona].length, 0);
+
+              return (
+                <div key={persona}>
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    {persona} Questions
+                    <span className="text-sm font-normal text-muted-foreground">
+                      ({personaQuestions.length})
+                    </span>
+                  </h3>
+                  {renderQuestionList(personaQuestions, startIndex)}
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
     </div>
   );
 }
