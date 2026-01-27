@@ -1,0 +1,291 @@
+# Prompt 6 (Revised): Persona-Aware Questionnaire Display
+
+> **Use Build Mode**
+
+```
+[OBJECTIVE]
+Enhance the existing "AI Questionnaire" tab on the control detail page to display 
+pre-loaded questions from the ontology with persona selection and response recording.
+
+[CONTEXT]
+After Prompt 5.5:
+- 100 controls loaded with ai_questionnaire JSONB containing 503 questions
+- organisation_controls has selected_persona column (default 'Auditor')
+- Questions tagged by persona: Auditor (282), Advisor (195), Analyst (26)
+
+The control detail page from Prompt 4 already has:
+- Tabbed interface: "AI Questionnaire", "Test History", "Implementation"
+- Control metadata header
+- Settings sidebar
+
+We need to enhance the "AI Questionnaire" tab with persona-aware display.
+
+[DO NOT REBUILD]
+Keep existing structure:
+- Control detail page layout
+- Tab navigation (AI Questionnaire, Test History, Implementation)
+- Settings sidebar
+- "Record Test" and "Back to Controls" buttons
+- All existing functionality from Prompts 4-5
+
+[REQUIREMENTS]
+
+### 1. Persona Selector Component
+
+Add at top of AI Questionnaire tab:
+
+```tsx
+// components/PersonaSelector.tsx
+interface PersonaSelectorProps {
+  selected: Persona;
+  questionCounts: { Auditor: number; Advisor: number; Analyst: number };
+  onChange: (persona: Persona) => void;
+  disabled?: boolean;
+}
+```
+
+Visual design:
+- Horizontal button group with 3 options
+- Each button shows: Icon + Label + Count
+- Icons from Lucide: Shield (Auditor), Lightbulb (Advisor), BarChart3 (Analyst)
+- Selected: bg-blue-600, text-white
+- Unselected: bg-zinc-100, text-zinc-700, hover:bg-zinc-200
+- Compact mobile: Icons only with tooltip
+
+### 2. Question Display Component
+
+```tsx
+// components/QuestionCard.tsx
+interface QuestionCardProps {
+  question: OntologyQuestion;
+  questionNumber: number;
+  response?: QuestionResponse;
+  persona: Persona;
+  onResponseChange: (questionId: number, response: string) => void;
+  onEvidenceAdd: (questionId: number, filename: string) => void;
+}
+```
+
+Question card layout:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Q1                                           [Critical] 🔴  │
+├─────────────────────────────────────────────────────────────┤
+│ Provide the documented internal and external issues         │
+│ affecting your ISMS.                                        │
+│                                                             │
+│ ▸ Guidance                     (collapsible, default open)  │
+│   Context documentation review. Look for: SWOT/PESTLE...    │
+│                                                             │
+│ ▸ Auditor Focus               (Auditor persona only)        │
+│   Is this organisation-specific or a generic template?      │
+│                                                             │
+│ ▸ What Good Looks Like        (Advisor persona highlighted) │
+│   Organisation-specific context document with dated...      │
+│                                                             │
+│ ▸ Red Flags ⚠️                 (Auditor persona only)        │
+│   Generic template without customisation; No regulatory...  │
+│                                                             │
+│ Expected: REGISTER; RECORD | Format: Document               │
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Your Response:                                          │ │
+│ │ ________________________________________________        │ │
+│ │ |                                              |        │ │
+│ │ |                                              |        │ │
+│ │ ------------------------------------------------        │ │
+│ │ Evidence: policy_v2.pdf, risk_register.xlsx    [+ Add]  │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                    [Unsaved •] / [Saved ✓]  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 3. Persona-Specific Display Rules
+
+Show/hide fields based on selected persona:
+
+| Field | Auditor | Advisor | Analyst |
+|-------|---------|---------|---------|
+| question | Always | Always | Always |
+| guidance | Open | Open | Open |
+| auditor_focus | **Highlighted** | Collapsed | Hidden |
+| what_good_looks_like | Collapsed | **Highlighted** | Collapsed |
+| red_flags | Visible | Hidden | Hidden |
+| nc_pattern | Collapsed | Hidden | Hidden |
+| evidence_type | Visible | Visible | Visible |
+| severity | Visible | Visible | Visible |
+| related_controls | Collapsed | Visible | Collapsed |
+
+Highlighted = Visible by default, with accent background (blue-50)
+Collapsed = Expandable, starts collapsed
+Hidden = Not rendered
+
+### 4. Filter Questions by Persona
+
+When persona is selected, show only questions where `primary_persona` matches.
+Add toggle to show all questions:
+
+```tsx
+<ViewModeToggle>
+  <ToggleButton active={viewMode === 'persona'}>
+    By Persona ({filteredCount})
+  </ToggleButton>
+  <ToggleButton active={viewMode === 'all'}>
+    All Questions ({totalCount})
+  </ToggleButton>
+</ViewModeToggle>
+```
+
+When "All Questions" selected, group by persona with headers.
+
+### 5. Response Recording
+
+Save responses to organisation_controls.implementation_responses:
+
+```typescript
+// Enhanced structure for implementation_responses JSONB
+{
+  "responses": [
+    {
+      "question_id": 1,
+      "response_text": "Our context document includes...",
+      "evidence_references": ["context_2025.pdf"],
+      "last_updated": "2026-01-27T10:30:00Z",
+      "answered_by_user_id": 1
+    }
+  ],
+  "completion_status": {
+    "total": 6,
+    "answered": 3,
+    "by_persona": {
+      "Auditor": { "total": 5, "answered": 2 },
+      "Advisor": { "total": 1, "answered": 1 },
+      "Analyst": { "total": 0, "answered": 0 }
+    }
+  }
+}
+```
+
+Auto-save behavior:
+- Debounce 2 seconds after typing stops
+- Show "Saving..." indicator
+- Show "Saved ✓" on success
+- Manual "Save All" button as backup
+
+### 6. Progress Indicator
+
+Show completion progress at top of questionnaire:
+
+```tsx
+<ProgressSection>
+  <ProgressBar value={50} max={100} />
+  <ProgressLabel>3 of 6 questions answered (50%)</ProgressLabel>
+  
+  {/* Mini breakdown by persona */}
+  <ProgressDetails>
+    <span>Auditor: 2/5</span>
+    <span>Advisor: 1/1</span>
+    <span>Analyst: 0/0</span>
+  </ProgressDetails>
+</ProgressSection>
+```
+
+### 7. API Endpoints
+
+```typescript
+// Get control with questionnaire and responses
+GET /api/controls/:controlNumber
+// Already exists, ensure it returns:
+// - ai_questionnaire from controls table
+// - implementation_responses from organisation_controls
+// - selected_persona from organisation_controls
+
+// Update selected persona
+PATCH /api/organisation-controls/:id/persona
+Body: { persona: 'Auditor' | 'Advisor' | 'Analyst' }
+Response: { success: true, selected_persona: 'Advisor' }
+
+// Save question response (already exists, enhance)
+PATCH /api/organisation-controls/:id
+Body: { implementation_responses: {...} }
+// Existing endpoint, ensure it handles new JSONB structure
+
+// NEW: Save single question response (more granular)
+PATCH /api/organisation-controls/:id/response
+Body: {
+  question_id: number,
+  response_text: string,
+  evidence_references: string[]
+}
+// Merges into existing implementation_responses
+```
+
+### 8. Severity Badge Component
+
+```tsx
+// components/SeverityBadge.tsx
+const severityColors = {
+  Critical: 'bg-red-100 text-red-700 border-red-200',
+  High: 'bg-orange-100 text-orange-700 border-orange-200',
+  Medium: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  Low: 'bg-green-100 text-green-700 border-green-200'
+};
+```
+
+### 9. AI Interaction Logging
+
+Log questionnaire views (not generations, since pre-loaded):
+
+```typescript
+// When user views questionnaire for first time in session
+await logAIInteraction({
+  user_id: 1,
+  interaction_type: 'questionnaire_generation', // reuse existing type
+  control_id: control.id,
+  input_summary: `Viewed questionnaire for ${control.control_number}`,
+  output_summary: `${questions.length} questions displayed (${persona} persona)`,
+  model_used: 'ontology-preloaded',
+  tokens_used: 0
+});
+```
+
+[STYLING]
+
+Use existing Linear-style design:
+- Card backgrounds: white with shadow-sm
+- Borders: zinc-200
+- Primary accent: blue-600
+- Collapsible chevrons: zinc-400
+- Response textarea: standard input styling
+- Progress bar: blue-600 on zinc-200 track
+
+[ACCEPTANCE CRITERIA]
+- [ ] Persona selector displays with correct question counts
+- [ ] Switching persona filters visible questions
+- [ ] Persona selection persists via API
+- [ ] Questions display with all metadata fields
+- [ ] Collapsible sections work (Guidance, Red Flags, etc.)
+- [ ] Severity badges show correct colors
+- [ ] Persona-specific fields shown/hidden correctly
+- [ ] Responses auto-save with debounce
+- [ ] Progress indicator updates in real-time
+- [ ] View mode toggle works (By Persona / All)
+- [ ] Evidence references can be added (text input for filenames)
+- [ ] Mobile responsive layout maintained
+
+**Create checkpoint: "Persona Questionnaire UI"**
+```
+
+---
+
+## Testing After Checkpoint
+
+1. Navigate to any control detail page
+2. Verify persona selector shows with counts (e.g., Auditor: 5, Advisor: 1, Analyst: 0)
+3. Switch personas and verify questions filter
+4. Expand/collapse guidance sections
+5. Enter response text, verify auto-save
+6. Add evidence reference, verify it saves
+7. Refresh page, verify persona and responses persist
+8. Check progress indicator updates
+9. Test on mobile viewport

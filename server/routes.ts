@@ -3,8 +3,16 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { seedDatabase } from "./seed";
 import { generateQuestionnaire, analyzeTestResponse, DEFAULT_MODEL, AIConfigurationError, checkAIConfiguration } from "./ai";
-import { insertTestRunSchema } from "@shared/schema";
+import { insertTestRunSchema, type Persona, type ImplementationResponses, type QuestionResponse } from "@shared/schema";
 import { z } from "zod";
+
+const personaSchema = z.enum(["Auditor", "Advisor", "Analyst"]);
+
+const questionResponseSchema = z.object({
+  question_id: z.number(),
+  response_text: z.string(),
+  evidence_references: z.array(z.string()).default([]),
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -320,6 +328,198 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching AI interactions:", error);
       res.status(500).json({ error: "Failed to fetch AI interactions" });
+    }
+  });
+
+  // Update selected persona for an organisation control
+  app.patch("/api/organisation-controls/:controlId/persona", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      const parseResult = personaSchema.safeParse(req.body.persona);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid persona. Must be 'Auditor', 'Advisor', or 'Analyst'" });
+      }
+
+      const persona = parseResult.data;
+
+      let orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        orgControl = await storage.createOrganisationControl({
+          controlId,
+          isApplicable: true,
+          selectedPersona: persona,
+        });
+      } else {
+        orgControl = await storage.updateOrganisationControl(controlId, {
+          selectedPersona: persona,
+        });
+      }
+
+      // Log AI interaction for persona view
+      const user = await storage.getOrCreateDefaultUser();
+      const control = await storage.getControlById(controlId);
+      if (control) {
+        await storage.createAiInteraction({
+          userId: user.id,
+          interactionType: "questionnaire_generation",
+          controlId: control.id,
+          inputSummary: `Viewed questionnaire for ${control.controlNumber}`,
+          outputSummary: `Persona changed to ${persona}`,
+          modelUsed: "ontology-preloaded",
+          tokensUsed: 0,
+        });
+      }
+
+      res.json({ success: true, selected_persona: persona });
+    } catch (error) {
+      console.error("Error updating persona:", error);
+      res.status(500).json({ error: "Failed to update persona" });
+    }
+  });
+
+  // Save a single question response (merges into existing implementation_responses)
+  app.patch("/api/organisation-controls/:controlId/response", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      const parseResult = questionResponseSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid response data", details: parseResult.error });
+      }
+
+      const { question_id, response_text, evidence_references } = parseResult.data;
+      const user = await storage.getOrCreateDefaultUser();
+
+      let orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        orgControl = await storage.createOrganisationControl({
+          controlId,
+          isApplicable: true,
+        });
+      }
+
+      // Get existing responses or create new structure
+      const existingResponses: ImplementationResponses = orgControl.implementationResponses || {
+        responses: [],
+        completion_status: {
+          total: 0,
+          answered: 0,
+          by_persona: {
+            Auditor: { total: 0, answered: 0 },
+            Advisor: { total: 0, answered: 0 },
+            Analyst: { total: 0, answered: 0 },
+          },
+        },
+      };
+
+      // Find or create response for this question
+      const existingIndex = existingResponses.responses.findIndex(
+        (r) => r.question_id === question_id
+      );
+
+      const newResponse: QuestionResponse = {
+        question_id,
+        response_text,
+        evidence_references,
+        last_updated: new Date().toISOString(),
+        answered_by_user_id: user.id,
+      };
+
+      if (existingIndex >= 0) {
+        existingResponses.responses[existingIndex] = newResponse;
+      } else {
+        existingResponses.responses.push(newResponse);
+      }
+
+      // Update answered count
+      existingResponses.completion_status.answered = existingResponses.responses.filter(
+        (r) => r.response_text.trim().length > 0
+      ).length;
+
+      // Update the organisation control
+      const updated = await storage.updateOrganisationControl(controlId, {
+        implementationResponses: existingResponses,
+        implementationUpdatedAt: new Date(),
+      });
+
+      res.json({ success: true, response: newResponse });
+    } catch (error) {
+      console.error("Error saving response:", error);
+      res.status(500).json({ error: "Failed to save response" });
+    }
+  });
+
+  // Add evidence to a question response
+  app.patch("/api/organisation-controls/:controlId/response/:questionId/evidence", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      const questionId = parseInt(req.params.questionId);
+      
+      if (isNaN(controlId) || isNaN(questionId)) {
+        return res.status(400).json({ error: "Invalid control or question ID" });
+      }
+
+      const { filename } = req.body;
+      if (!filename || typeof filename !== "string") {
+        return res.status(400).json({ error: "Filename is required" });
+      }
+
+      const user = await storage.getOrCreateDefaultUser();
+      let orgControl = await storage.getOrganisationControl(controlId);
+      
+      if (!orgControl) {
+        return res.status(404).json({ error: "Organisation control not found" });
+      }
+
+      const existingResponses: ImplementationResponses = orgControl.implementationResponses || {
+        responses: [],
+        completion_status: {
+          total: 0,
+          answered: 0,
+          by_persona: {
+            Auditor: { total: 0, answered: 0 },
+            Advisor: { total: 0, answered: 0 },
+            Analyst: { total: 0, answered: 0 },
+          },
+        },
+      };
+
+      const existingIndex = existingResponses.responses.findIndex(
+        (r) => r.question_id === questionId
+      );
+
+      if (existingIndex >= 0) {
+        const existing = existingResponses.responses[existingIndex];
+        if (!existing.evidence_references.includes(filename)) {
+          existing.evidence_references.push(filename);
+          existing.last_updated = new Date().toISOString();
+        }
+      } else {
+        existingResponses.responses.push({
+          question_id: questionId,
+          response_text: "",
+          evidence_references: [filename],
+          last_updated: new Date().toISOString(),
+          answered_by_user_id: user.id,
+        });
+      }
+
+      const updated = await storage.updateOrganisationControl(controlId, {
+        implementationResponses: existingResponses,
+        implementationUpdatedAt: new Date(),
+      });
+
+      res.json({ success: true, evidence_references: existingResponses.responses.find(r => r.question_id === questionId)?.evidence_references || [] });
+    } catch (error) {
+      console.error("Error adding evidence:", error);
+      res.status(500).json({ error: "Failed to add evidence" });
     }
   });
 
