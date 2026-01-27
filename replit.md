@@ -75,4 +75,15 @@ Schema uses Drizzle with PostgreSQL enums for type safety on frequencies, quarte
 
 ### Seed Data
 - Controls data loaded from `seed-data/controls.json` on first startup
-- Contains 90 ISO 27001:2022 controls organized into 5 categories
+- Contains 90 organization-specific controls organized into 5 categories:
+  - ISMS Requirements (Clauses 4-10): 7 controls (RQ4-RQ10)
+  - Organisational Controls: 38 controls (5.1-5.37)
+  - People Controls: 8 controls (6.1-6.8)
+  - Physical Controls: 3 controls (7.x)
+  - Technological Controls: 34 controls (8.1-8.34)
+- Each control includes:
+  - Organization-specific control numbers (e.g., RQ4, 5.1a, 8.17a)
+  - APRA CPS234 prudential standard references
+  - APRA CPS230 operational resilience references
+  - ISO 27001:2022 Annex A cross-references
+  - Default test frequency and owner roles
