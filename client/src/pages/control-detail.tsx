@@ -16,10 +16,9 @@ import {
 } from "@/components/ui/select";
 import { ControlDetailSkeleton } from "@/components/loading-skeleton";
 import { StatusBadge, ApplicabilityBadge, FrequencyBadge } from "@/components/status-badge";
-import { PersonaSelector } from "@/components/PersonaSelector";
+import { PersonaSelector, type PersonaOrAll } from "@/components/PersonaSelector";
 import { QuestionCard } from "@/components/QuestionCard";
 import { ProgressSection } from "@/components/ProgressSection";
-import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
@@ -395,10 +394,9 @@ function QuestionnaireTab({
   const questionnaire = control.aiQuestionnaire as ControlQuestionnaire;
   const questions = questionnaire?.questions || [];
   
-  const [selectedPersona, setSelectedPersona] = useState<Persona>(
+  const [selectedPersona, setSelectedPersona] = useState<PersonaOrAll>(
     (orgControl?.selectedPersona as Persona) || "Auditor"
   );
-  const [viewMode, setViewMode] = useState<"persona" | "all">("persona");
   const [saveStatuses, setSaveStatuses] = useState<Record<number, "idle" | "saving" | "saved" | "error">>({});
   const [localResponses, setLocalResponses] = useState<Record<number, QuestionResponse>>({});
 
@@ -413,22 +411,24 @@ function QuestionnaireTab({
   }, [orgControl?.implementationResponses]);
 
   const questionCounts = useMemo(() => {
-    const counts = { Auditor: 0, Advisor: 0, Analyst: 0 };
+    const counts = { Auditor: 0, Advisor: 0, Analyst: 0, All: questions.length };
     for (const q of questions) {
-      if (q.primary_persona && counts[q.primary_persona] !== undefined) {
-        counts[q.primary_persona]++;
+      if (q.primary_persona && counts[q.primary_persona as Persona] !== undefined) {
+        counts[q.primary_persona as Persona]++;
       }
     }
     return counts;
   }, [questions]);
 
+  const isAllMode = selectedPersona === "All";
+
   const filteredQuestions = useMemo(() => {
-    if (viewMode === "all") return questions;
+    if (isAllMode) return questions;
     return questions.filter((q) => q.primary_persona === selectedPersona);
-  }, [questions, viewMode, selectedPersona]);
+  }, [questions, isAllMode, selectedPersona]);
 
   const groupedQuestions = useMemo(() => {
-    if (viewMode !== "all") return null;
+    if (!isAllMode) return null;
     const groups: Record<Persona, OntologyQuestion[]> = {
       Auditor: [],
       Advisor: [],
@@ -440,7 +440,7 @@ function QuestionnaireTab({
       }
     }
     return groups;
-  }, [questions, viewMode]);
+  }, [questions, isAllMode]);
 
   const progressData = useMemo(() => {
     const answeredIds = new Set(
@@ -584,9 +584,12 @@ function QuestionnaireTab({
     [evidenceMutation]
   );
 
-  const handlePersonaChange = (persona: Persona) => {
+  const handlePersonaChange = (persona: PersonaOrAll) => {
     setSelectedPersona(persona);
-    personaMutation.mutate(persona);
+    // Only save to DB if it's not "All" (All is a view mode, not a persona preference)
+    if (persona !== "All") {
+      personaMutation.mutate(persona);
+    }
   };
 
   const handleSaveAll = () => {
@@ -607,18 +610,24 @@ function QuestionnaireTab({
 
   const renderQuestionList = (questionsToRender: OntologyQuestion[], startIndex: number = 0) => (
     <div className="space-y-4">
-      {questionsToRender.map((q, index) => (
-        <QuestionCard
-          key={q.question_id}
-          question={q}
-          questionNumber={startIndex + index + 1}
-          response={localResponses[q.question_id]}
-          persona={selectedPersona}
-          onResponseChange={handleResponseChange}
-          onEvidenceAdd={handleEvidenceAdd}
-          saveStatus={saveStatuses[q.question_id] || "idle"}
-        />
-      ))}
+      {questionsToRender.map((q, index) => {
+        // When in "All" mode, use the question's primary persona; otherwise use selected persona
+        const displayPersona: Persona = isAllMode 
+          ? (q.primary_persona || "Auditor") 
+          : (selectedPersona as Persona);
+        return (
+          <QuestionCard
+            key={q.question_id}
+            question={q}
+            questionNumber={startIndex + index + 1}
+            response={localResponses[q.question_id]}
+            persona={displayPersona}
+            onResponseChange={handleResponseChange}
+            onEvidenceAdd={handleEvidenceAdd}
+            saveStatus={saveStatuses[q.question_id] || "idle"}
+          />
+        );
+      })}
     </div>
   );
 
@@ -649,24 +658,18 @@ function QuestionnaireTab({
             byPersona={progressData.byPersona}
           />
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <PersonaSelector
               selected={selectedPersona}
               questionCounts={questionCounts}
               onChange={handlePersonaChange}
               disabled={personaMutation.isPending}
             />
-            <ViewModeToggle
-              viewMode={viewMode}
-              personaCount={filteredQuestions.length}
-              totalCount={questions.length}
-              onChange={setViewMode}
-            />
           </div>
         </CardContent>
       </Card>
 
-      {viewMode === "persona" ? (
+      {!isAllMode ? (
         filteredQuestions.length > 0 ? (
           renderQuestionList(filteredQuestions)
         ) : (

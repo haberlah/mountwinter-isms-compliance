@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Search, ChevronUp, ChevronDown, CheckCircle, XCircle, AlertCircle, Clock, User } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,6 +78,7 @@ function SortIcon({ field, sortField, sortDirection }: { field: SortField; sortF
 }
 
 export default function Controls() {
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -349,19 +350,24 @@ export default function Controls() {
                   <TableRow 
                     key={control.id} 
                     className="hover-elevate cursor-pointer"
+                    onClick={() => navigate(`/controls/${control.controlNumber}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/controls/${control.controlNumber}`);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="link"
                     data-testid={`row-control-${control.controlNumber}`}
                   >
                     <TableCell>
-                      <Link href={`/controls/${control.controlNumber}`}>
-                        <span className="font-medium text-primary" data-testid={`text-control-number-${control.id}`}>
-                          {control.controlNumber}
-                        </span>
-                      </Link>
+                      <span className="font-medium text-primary" data-testid={`text-control-number-${control.id}`}>
+                        {control.controlNumber}
+                      </span>
                     </TableCell>
                     <TableCell>
-                      <Link href={`/controls/${control.controlNumber}`}>
-                        <span data-testid={`text-control-name-${control.id}`}>{control.name}</span>
-                      </Link>
+                      <span data-testid={`text-control-name-${control.id}`}>{control.name}</span>
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-muted-foreground" data-testid={`text-control-category-${control.id}`}>

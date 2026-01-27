@@ -1,19 +1,22 @@
-import { Shield, Lightbulb, BarChart3 } from "lucide-react";
+import { Shield, Lightbulb, BarChart3, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Persona } from "@shared/schema";
 
+type PersonaOrAll = Persona | "All";
+
 interface PersonaSelectorProps {
-  selected: Persona;
-  questionCounts: { Auditor: number; Advisor: number; Analyst: number };
-  onChange: (persona: Persona) => void;
+  selected: PersonaOrAll;
+  questionCounts: { Auditor: number; Advisor: number; Analyst: number; All: number };
+  onChange: (persona: PersonaOrAll) => void;
   disabled?: boolean;
 }
 
-const personaConfig: Record<Persona, { icon: typeof Shield; label: string }> = {
+const personaConfig: Record<PersonaOrAll, { icon: typeof Shield; label: string }> = {
   Auditor: { icon: Shield, label: "Auditor" },
   Advisor: { icon: Lightbulb, label: "Advisor" },
   Analyst: { icon: BarChart3, label: "Analyst" },
+  All: { icon: List, label: "All" },
 };
 
 export function PersonaSelector({
@@ -22,25 +25,25 @@ export function PersonaSelector({
   onChange,
   disabled = false,
 }: PersonaSelectorProps) {
-  const personas: Persona[] = ["Auditor", "Advisor", "Analyst"];
+  const options: PersonaOrAll[] = ["Auditor", "Advisor", "Analyst", "All"];
 
   return (
-    <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
-      {personas.map((persona) => {
-        const config = personaConfig[persona];
+    <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex-wrap">
+      {options.map((option) => {
+        const config = personaConfig[option];
         const Icon = config.icon;
-        const isSelected = selected === persona;
-        const count = questionCounts[persona];
+        const isSelected = selected === option;
+        const count = questionCounts[option];
 
         return (
-          <Tooltip key={persona}>
+          <Tooltip key={option}>
             <TooltipTrigger asChild>
               <Button
                 variant={isSelected ? "default" : "ghost"}
                 size="sm"
-                onClick={() => onChange(persona)}
+                onClick={() => onChange(option)}
                 disabled={disabled}
-                data-testid={`button-persona-${persona.toLowerCase()}`}
+                data-testid={`button-persona-${option.toLowerCase()}`}
               >
                 <Icon className="h-4 w-4 mr-1" />
                 <span className="hidden sm:inline mr-1">{config.label}</span>
@@ -64,3 +67,5 @@ export function PersonaSelector({
     </div>
   );
 }
+
+export type { PersonaOrAll };
