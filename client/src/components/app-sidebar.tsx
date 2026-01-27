@@ -16,6 +16,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import mwcLogo from "@assets/mwc_logo.png";
 
 const navItems = [
   {
@@ -43,10 +44,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Shield className="h-5 w-5" />
-          </div>
-          <span className="text-sm font-semibold tracking-tight">MWC - ISMS Compliance Tracker</span>
+          <img 
+            src={mwcLogo} 
+            alt="MWC Logo" 
+            className="h-10 w-10 rounded-md object-contain"
+          />
+          <span className="text-sm font-semibold tracking-tight">ISMS Compliance Tracker</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
