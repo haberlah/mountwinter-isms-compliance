@@ -46,6 +46,11 @@ function useDebouncedCallback<T extends (...args: any[]) => void>(
   delay: number
 ): T {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const callbackRef = useRef(callback);
+  
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
   
   return useCallback(
     ((...args: Parameters<T>) => {
@@ -53,10 +58,10 @@ function useDebouncedCallback<T extends (...args: any[]) => void>(
         clearTimeout(timeoutRef.current);
       }
       timeoutRef.current = setTimeout(() => {
-        callback(...args);
+        callbackRef.current(...args);
       }, delay);
     }) as T,
-    [callback, delay]
+    [delay]
   );
 }
 
@@ -522,8 +527,14 @@ function QuestionnaireTab({
     },
   });
 
+  const localResponsesRef = useRef(localResponses);
+  useEffect(() => {
+    localResponsesRef.current = localResponses;
+  }, [localResponses]);
+
   const debouncedSave = useDebouncedCallback(
-    (questionId: number, responseText: string, evidenceRefs: string[]) => {
+    (questionId: number, responseText: string) => {
+      const evidenceRefs = localResponsesRef.current[questionId]?.evidence_references || [];
       responseMutation.mutate({
         question_id: questionId,
         response_text: responseText,
@@ -549,13 +560,9 @@ function QuestionnaireTab({
         },
       }));
 
-      debouncedSave(
-        questionId, 
-        responseText, 
-        localResponses[questionId]?.evidence_references || []
-      );
+      debouncedSave(questionId, responseText);
     },
-    [debouncedSave, localResponses]
+    [debouncedSave]
   );
 
   const handleEvidenceAdd = useCallback(

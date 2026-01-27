@@ -23,19 +23,22 @@ interface CollapsibleSectionProps {
   defaultOpen?: boolean;
   highlighted?: boolean;
   icon?: "warning" | null;
+  testId?: string;
 }
 
-function CollapsibleSection({ title, content, defaultOpen = false, highlighted = false, icon }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, content, defaultOpen = false, highlighted = false, icon, testId }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   if (!content) return null;
 
   return (
     <div className={`rounded-md ${highlighted ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800" : ""}`}>
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 w-full text-left py-2 px-3 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-        data-testid={`button-toggle-${title.toLowerCase().replace(/\s+/g, "-")}`}
+        className="w-full justify-start gap-2 font-medium text-zinc-700 dark:text-zinc-300"
+        data-testid={testId}
       >
         {isOpen ? (
           <ChevronDown className="h-4 w-4 text-zinc-400" />
@@ -44,7 +47,7 @@ function CollapsibleSection({ title, content, defaultOpen = false, highlighted =
         )}
         {icon === "warning" && <AlertTriangle className="h-4 w-4 text-amber-500" />}
         {title}
-      </button>
+      </Button>
       {isOpen && (
         <div className="px-3 pb-3 text-sm text-muted-foreground">
           {content}
@@ -140,6 +143,7 @@ export function QuestionCard({
             title="Guidance"
             content={question.guidance}
             defaultOpen
+            testId={`button-toggle-guidance-${question.question_id}`}
           />
 
           {visibleFields.auditorFocus !== "hidden" && (
@@ -148,6 +152,7 @@ export function QuestionCard({
               content={question.auditor_focus}
               defaultOpen={visibleFields.auditorFocus === "highlighted"}
               highlighted={visibleFields.auditorFocus === "highlighted"}
+              testId={`button-toggle-auditor-focus-${question.question_id}`}
             />
           )}
 
@@ -157,6 +162,7 @@ export function QuestionCard({
               content={question.what_good_looks_like}
               defaultOpen={visibleFields.whatGoodLooksLike === "highlighted"}
               highlighted={visibleFields.whatGoodLooksLike === "highlighted"}
+              testId={`button-toggle-what-good-looks-like-${question.question_id}`}
             />
           )}
 
@@ -165,6 +171,7 @@ export function QuestionCard({
               title="Red Flags"
               content={question.red_flags}
               icon="warning"
+              testId={`button-toggle-red-flags-${question.question_id}`}
             />
           )}
 
@@ -172,6 +179,7 @@ export function QuestionCard({
             <CollapsibleSection
               title="NC Pattern"
               content={question.nc_pattern}
+              testId={`button-toggle-nc-pattern-${question.question_id}`}
             />
           )}
 
@@ -180,6 +188,7 @@ export function QuestionCard({
               title="Related Controls"
               content={question.related_controls}
               defaultOpen={visibleFields.relatedControls === "visible"}
+              testId={`button-toggle-related-controls-${question.question_id}`}
             />
           )}
 
@@ -215,6 +224,7 @@ export function QuestionCard({
                     <span
                       key={i}
                       className="text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded"
+                      data-testid={`tag-evidence-${question.question_id}-${i}`}
                     >
                       {ref}
                     </span>
@@ -232,8 +242,7 @@ export function QuestionCard({
                 />
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
+                  size="icon"
                   onClick={handleAddEvidence}
                   data-testid={`button-add-evidence-${question.question_id}`}
                 >
@@ -242,7 +251,7 @@ export function QuestionCard({
               </div>
             </div>
 
-            <div className="flex items-center gap-1 text-xs">
+            <div className="flex items-center gap-1 text-xs" data-testid={`status-save-${question.question_id}`}>
               {saveStatus === "saving" && (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />

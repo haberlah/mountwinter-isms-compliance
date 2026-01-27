@@ -2,6 +2,19 @@
 
 ## Recent Changes (January 2026)
 
+### Prompt 6 - Persona-Aware Questionnaire Display (Completed)
+- PersonaSelector component: 3 persona buttons (Auditor, Advisor, Analyst) with question counts and selection state
+- SeverityBadge component: Critical (red), High (orange), Medium (yellow), Low (green) color variants
+- QuestionCard component: Collapsible sections for guidance, auditor_focus, what_good_looks_like, red_flags, nc_pattern, related_controls
+- ProgressSection component: Shows questionnaire completion by persona (e.g., "Auditor: 2/5")
+- ViewModeToggle component: Switch between "By Persona" (filtered) and "All Questions" (grouped)
+- Auto-save with 2-second debounce using useDebouncedCallback hook
+- Save status indicators: Saving..., Saved (green), Error, Unsaved states
+- Evidence references: Add/display as tags in QuestionCard
+- API endpoints: PATCH /persona, PATCH /response (auto-merge), PATCH /response/:questionId/evidence
+- Persona changes logged as AI interactions with "ontology-preloaded" model
+- Persona-specific display rules: Auditor highlights auditor_focus, Advisor highlights what_good_looks_like
+
 ### Ontology Migration (Completed)
 - Upgraded from 90 to 100 controls with enhanced ISO 27001:2022 ontology
 - Loaded 503 audit questions from iso_27001_ontology.json

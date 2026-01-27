@@ -36,25 +36,18 @@ export function PersonaSelector({
           <Tooltip key={persona}>
             <TooltipTrigger asChild>
               <Button
-                variant="ghost"
+                variant={isSelected ? "default" : "ghost"}
                 size="sm"
                 onClick={() => onChange(persona)}
                 disabled={disabled}
-                className={`
-                  flex items-center gap-2 px-3 py-2 rounded-md transition-colors
-                  ${isSelected 
-                    ? "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700" 
-                    : "bg-transparent text-zinc-700 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-700"
-                  }
-                `}
                 data-testid={`button-persona-${persona.toLowerCase()}`}
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{config.label}</span>
+                <Icon className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline mr-1">{config.label}</span>
                 <span className={`
                   text-xs font-medium px-1.5 py-0.5 rounded
                   ${isSelected 
-                    ? "bg-blue-500 text-white" 
+                    ? "bg-primary-foreground/20 text-primary-foreground" 
                     : "bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400"
                   }
                 `}>
