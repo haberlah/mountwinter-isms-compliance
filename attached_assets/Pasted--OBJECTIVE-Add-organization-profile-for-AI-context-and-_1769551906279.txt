@@ -1,0 +1,368 @@
+[OBJECTIVE]
+Add organization profile for AI context and bulk control applicability management.
+This personalizes the tracker to a specific organization and improves AI response relevance.
+
+[CONTEXT]
+After Prompt 9:
+- Settings page has API config, defaults, and data management sections
+- Control applicability is toggled per-control on detail pages
+- AI analysis uses generic ISO 27001 context
+
+We need to add:
+1. Organization profile that provides context for AI-generated analysis
+2. Bulk control applicability management (select which controls apply)
+
+[REQUIREMENTS]
+
+### 1. New Database Table
+
+Create `organisation_profile` table:
+```sql
+CREATE TABLE organisation_profile (
+  id SERIAL PRIMARY KEY,
+  organisation_id INTEGER DEFAULT 1,  -- For V2 multi-tenancy
+  company_name TEXT,
+  industry TEXT,  -- e.g., "Financial Services", "Healthcare SaaS", "Technology"
+  company_size TEXT,  -- e.g., "1-50", "51-200", "201-1000", "1000+"
+  tech_stack TEXT,  -- e.g., "AWS, React, PostgreSQL, Kubernetes"
+  deployment_model TEXT,  -- e.g., "Cloud-native SaaS", "Hybrid", "On-premise"
+  regulatory_requirements JSONB DEFAULT '[]',  -- ["CPS 234", "GDPR", "SOC 2", "HIPAA"]
+  data_classification_levels JSONB DEFAULT '[]',  -- ["Public", "Internal", "Confidential"]
+  risk_appetite VARCHAR(20) DEFAULT 'Moderate',  -- 'Conservative', 'Moderate', 'Aggressive'
+  additional_context TEXT,  -- Free-form context for AI
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### 2. Organization Profile UI
+
+Add new section to Settings page (/settings):
+```tsx
+<SettingsSection title="Organization Profile">
+  <p className="text-zinc-500 mb-4">
+    This information helps the AI provide more relevant compliance guidance 
+    tailored to your organization.
+  </p>
+  
+  <Form>
+    <FormField label="Company Name" optional>
+      <Input placeholder="Acme Corporation" />
+    </FormField>
+    
+    <FormField label="Industry">
+      <Select options={[
+        "Financial Services",
+        "Healthcare",
+        "Technology / SaaS",
+        "Retail / E-commerce",
+        "Manufacturing",
+        "Government",
+        "Education",
+        "Other"
+      ]} />
+    </FormField>
+    
+    <FormField label="Company Size">
+      <Select options={[
+        "1-50 employees",
+        "51-200 employees",
+        "201-1000 employees",
+        "1000+ employees"
+      ]} />
+    </FormField>
+    
+    <FormField label="Technology Stack" optional>
+      <Textarea placeholder="AWS, React, Node.js, PostgreSQL, Kubernetes..." />
+    </FormField>
+    
+    <FormField label="Deployment Model">
+      <Select options={[
+        "Cloud-native SaaS",
+        "Cloud-hosted (IaaS)",
+        "Hybrid (Cloud + On-premise)",
+        "On-premise only"
+      ]} />
+    </FormField>
+    
+    <FormField label="Regulatory Requirements">
+      <MultiSelect options={[
+        "ISO 27001",
+        "SOC 2",
+        "CPS 234 (APRA)",
+        "CPS 230 (APRA)",
+        "GDPR",
+        "HIPAA",
+        "PCI-DSS",
+        "SOX",
+        "NIST CSF",
+        "Essential Eight",
+        "FedRAMP",
+        "Other"
+      ]} />
+    </FormField>
+    
+    <FormField label="Data Classification Levels" optional>
+      <MultiSelect options={[
+        "Public",
+        "Internal",
+        "Confidential",
+        "Restricted / Secret"
+      ]} />
+    </FormField>
+    
+    <FormField label="Risk Appetite">
+      <RadioGroup options={[
+        { value: "Conservative", label: "Conservative — Minimize all risks, full compliance" },
+        { value: "Moderate", label: "Moderate — Balance risk with business needs" },
+        { value: "Aggressive", label: "Aggressive — Accept higher risk for agility" }
+      ]} />
+    </FormField>
+    
+    <FormField label="Additional Context for AI" optional>
+      <Textarea 
+        rows={4}
+        placeholder="Any other context that would help the AI understand your organization. E.g., 'We are a Series B startup preparing for SOC 2 Type II audit in Q3. Our main product handles PII for healthcare customers.'"
+      />
+    </FormField>
+    
+    <Button type="submit">Save Profile</Button>
+  </Form>
+</SettingsSection>
+```
+
+### 3. Bulk Control Applicability UI
+
+Add new section to Settings page:
+```tsx
+<SettingsSection title="Control Applicability">
+  <p className="text-zinc-500 mb-4">
+    Select which controls are applicable to your organization. 
+    Non-applicable controls are excluded from compliance calculations and can be hidden from the controls list.
+  </p>
+  
+  <SummaryBar>
+    <span>{applicableCount} of 100 controls applicable</span>
+    <Checkbox 
+      label="Hide non-applicable controls in Controls list" 
+      checked={hideNonApplicable}
+      onChange={setHideNonApplicable}
+    />
+  </SummaryBar>
+  
+  <FilterBar>
+    <Select 
+      label="Filter by Category"
+      options={["All Categories", ...categories]}
+      value={categoryFilter}
+      onChange={setCategoryFilter}
+    />
+    <ButtonGroup>
+      <Button variant="secondary" onClick={selectAllVisible}>
+        Select All Visible
+      </Button>
+      <Button variant="secondary" onClick={deselectAllVisible}>
+        Deselect All Visible
+      </Button>
+    </ButtonGroup>
+  </FilterBar>
+  
+  <ApplicabilityTable>
+    <thead>
+      <tr>
+        <th><Checkbox for select all /></th>
+        <th>Control #</th>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Applicable</th>
+      </tr>
+    </thead>
+    <tbody>
+      {controls.map(control => (
+        <tr key={control.id}>
+          <td><Checkbox checked={selected.includes(control.id)} /></td>
+          <td>{control.control_number}</td>
+          <td>{control.name}</td>
+          <td><CategoryBadge>{control.category}</CategoryBadge></td>
+          <td>
+            <Toggle 
+              checked={control.is_applicable}
+              onChange={() => toggleApplicability(control.id)}
+            />
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </ApplicabilityTable>
+  
+  <ActionBar>
+    <Button onClick={saveChanges} disabled={!hasChanges}>
+      Save Changes
+    </Button>
+    {hasChanges && <span className="text-zinc-500">Unsaved changes</span>}
+  </ActionBar>
+</SettingsSection>
+```
+
+### 4. API Endpoints
+```typescript
+// Organization Profile
+GET  /api/settings/profile
+Response: OrganisationProfile | null
+
+PUT  /api/settings/profile
+Body: {
+  company_name?: string;
+  industry?: string;
+  company_size?: string;
+  tech_stack?: string;
+  deployment_model?: string;
+  regulatory_requirements?: string[];
+  data_classification_levels?: string[];
+  risk_appetite?: 'Conservative' | 'Moderate' | 'Aggressive';
+  additional_context?: string;
+}
+Response: OrganisationProfile
+
+// Bulk Applicability
+GET  /api/controls/applicability
+Response: Array<{
+  control_id: number;
+  control_number: string;
+  name: string;
+  category: string;
+  is_applicable: boolean;
+}>
+
+PATCH /api/controls/applicability
+Body: {
+  updates: Array<{ control_id: number; is_applicable: boolean }>
+}
+Response: { updated: number }
+
+// User preference for hiding non-applicable
+PATCH /api/settings/preferences
+Body: { hide_non_applicable_controls: boolean }
+```
+
+### 5. Update AI Analysis to Include Organization Context
+
+Modify the AI prompt construction in the analysis endpoint (from Prompt 7):
+```typescript
+async function buildAnalysisSystemPrompt(
+  persona: Persona,
+  control: Control,
+  questions: OntologyQuestion[]
+): Promise<string> {
+  
+  // Fetch organization profile
+  const profile = await db.query.organisationProfile.findFirst({
+    where: eq(organisationProfile.organisation_id, 1)
+  });
+  
+  const basePrompt = `You are an ISO 27001:2022 compliance ${persona.toLowerCase()} 
+analyzing responses for control ${control.control_number}: ${control.name}.`;
+
+  // Build organization context section
+  const orgContext = profile ? `
+
+## Organization Context
+${profile.company_name ? `- Company: ${profile.company_name}` : ''}
+${profile.industry ? `- Industry: ${profile.industry}` : ''}
+${profile.company_size ? `- Size: ${profile.company_size}` : ''}
+${profile.tech_stack ? `- Tech Stack: ${profile.tech_stack}` : ''}
+${profile.deployment_model ? `- Deployment: ${profile.deployment_model}` : ''}
+${profile.regulatory_requirements?.length ? `- Regulatory Requirements: ${profile.regulatory_requirements.join(', ')}` : ''}
+${profile.risk_appetite ? `- Risk Appetite: ${profile.risk_appetite}` : ''}
+${profile.additional_context ? `- Additional Context: ${profile.additional_context}` : ''}
+
+When evaluating responses, consider this organizational context:
+- Tailor recommendations to the company's industry and size
+- Reference relevant regulatory requirements they must meet
+- Adjust expectations based on their risk appetite
+- Consider their tech stack when discussing technical controls
+` : '';
+
+  return `${basePrompt}${orgContext}${personaPrompts[persona]}`;
+}
+```
+
+### 6. Update Controls List to Support Hiding Non-Applicable
+
+Add query parameter and filter:
+```typescript
+// GET /api/controls?hide_non_applicable=true
+// Filter controls where is_applicable = true when parameter is set
+
+// Frontend: Read preference from settings
+const { data: preferences } = useQuery(['preferences'], fetchPreferences);
+const hideNonApplicable = preferences?.hide_non_applicable_controls ?? false;
+
+// Pass to API call
+const { data: controls } = useQuery(
+  ['controls', { hideNonApplicable }],
+  () => fetchControls({ hide_non_applicable: hideNonApplicable })
+);
+```
+
+### 7. TypeScript Types
+```typescript
+// types.ts
+export interface OrganisationProfile {
+  id: number;
+  organisation_id: number;
+  company_name: string | null;
+  industry: string | null;
+  company_size: string | null;
+  tech_stack: string | null;
+  deployment_model: string | null;
+  regulatory_requirements: string[];
+  data_classification_levels: string[];
+  risk_appetite: 'Conservative' | 'Moderate' | 'Aggressive';
+  additional_context: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ControlApplicability {
+  control_id: number;
+  control_number: string;
+  name: string;
+  category: string;
+  is_applicable: boolean;
+}
+
+export interface UserPreferences {
+  hide_non_applicable_controls: boolean;
+}
+```
+
+[STYLING]
+
+Organization Profile form:
+- Standard form layout with labels above inputs
+- Multi-select uses pill/chip style for selected items
+- Radio group for risk appetite with descriptions
+- Generous spacing between form fields
+
+Applicability table:
+- Compact table with hover states
+- Toggle switches for quick applicability changes
+- Category badges matching existing design
+- Sticky header for scrolling
+- Bulk action buttons in zinc-100 bar above table
+
+[ACCEPTANCE CRITERIA]
+- [ ] Organisation profile form saves and loads correctly
+- [ ] All profile fields persist to database
+- [ ] Bulk applicability table shows all 100 controls
+- [ ] Category filter works on applicability table
+- [ ] Select All / Deselect All work correctly
+- [ ] Individual toggles update immediately (optimistic UI)
+- [ ] Save Changes persists bulk updates
+- [ ] AI analysis includes organization context when available
+- [ ] Controls list respects "hide non-applicable" preference
+- [ ] Dashboard stats exclude non-applicable controls (already implemented)
+- [ ] Empty profile gracefully handled (AI works without context)
+
+**Create checkpoint: "Organization Setup"**
