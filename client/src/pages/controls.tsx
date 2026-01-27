@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Search, ChevronUp, ChevronDown, CheckCircle, XCircle, AlertCircle, Clock } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, CheckCircle, XCircle, AlertCircle, Clock, User } from "lucide-react";
+import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ControlWithLatestTest, ControlsStats, ControlCategory } from "@shared/schema";
 
-type SortField = "controlNumber" | "name" | "category" | "status" | "frequency";
+type SortField = "controlNumber" | "name" | "category" | "status" | "frequency" | "owner" | "lastTested";
 type SortDirection = "asc" | "desc";
 
 function getStatusInfo(status: string | null | undefined) {
@@ -163,6 +164,16 @@ export default function Controls() {
           const freqB = b.defaultFrequency || "Annual";
           comparison = freqA.localeCompare(freqB);
           break;
+        case "owner":
+          const ownerA = a.ownerRole || "zzz";
+          const ownerB = b.ownerRole || "zzz";
+          comparison = ownerA.localeCompare(ownerB);
+          break;
+        case "lastTested":
+          const dateA = a.latestTestRun?.testDate ? new Date(a.latestTestRun.testDate).getTime() : 0;
+          const dateB = b.latestTestRun?.testDate ? new Date(b.latestTestRun.testDate).getTime() : 0;
+          comparison = dateA - dateB;
+          break;
       }
       return sortDirection === "asc" ? comparison : -comparison;
     });
@@ -292,6 +303,26 @@ export default function Controls() {
                     <SortIcon field="frequency" sortField={sortField} sortDirection={sortDirection} />
                   </div>
                 </TableHead>
+                <TableHead 
+                  className="cursor-pointer select-none w-[120px]" 
+                  onClick={() => handleSort("owner")}
+                  data-testid="th-owner"
+                >
+                  <div className="flex items-center gap-1">
+                    Owner
+                    <SortIcon field="owner" sortField={sortField} sortDirection={sortDirection} />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer select-none w-[110px]" 
+                  onClick={() => handleSort("lastTested")}
+                  data-testid="th-last-tested"
+                >
+                  <div className="flex items-center gap-1">
+                    Last Tested
+                    <SortIcon field="lastTested" sortField={sortField} sortDirection={sortDirection} />
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -303,11 +334,13 @@ export default function Controls() {
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   </TableRow>
                 ))
               ) : filteredAndSortedControls.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {controls?.length === 0 ? "No controls found" : "No controls match your filters"}
                   </TableCell>
                 </TableRow>
@@ -341,6 +374,18 @@ export default function Controls() {
                     <TableCell>
                       <span className="text-sm" data-testid={`text-control-frequency-${control.id}`}>
                         {control.defaultFrequency || "Annual"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground" data-testid={`text-control-owner-${control.id}`}>
+                        {control.ownerRole || "-"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground" data-testid={`text-control-last-tested-${control.id}`}>
+                        {control.latestTestRun?.testDate 
+                          ? format(new Date(control.latestTestRun.testDate), "MMM d, yyyy")
+                          : "-"}
                       </span>
                     </TableCell>
                   </TableRow>
