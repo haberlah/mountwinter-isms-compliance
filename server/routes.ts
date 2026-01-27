@@ -90,6 +90,33 @@ export async function registerRoutes(
     }
   });
 
+  // Control Applicability endpoints (must be before :controlNumber route)
+  app.get("/api/controls/applicability", async (req, res) => {
+    try {
+      const applicability = await storage.getControlsApplicability();
+      res.json(applicability);
+    } catch (error) {
+      console.error("Error fetching control applicability:", error);
+      res.status(500).json({ error: "Failed to fetch control applicability" });
+    }
+  });
+
+  app.patch("/api/controls/applicability", async (req, res) => {
+    try {
+      const { updates } = req.body;
+      
+      if (!Array.isArray(updates)) {
+        return res.status(400).json({ error: "Updates must be an array" });
+      }
+
+      const updatedCount = await storage.updateControlsApplicability(updates);
+      res.json({ updated: updatedCount });
+    } catch (error) {
+      console.error("Error updating control applicability:", error);
+      res.status(500).json({ error: "Failed to update control applicability" });
+    }
+  });
+
   app.get("/api/controls/:controlNumber", async (req, res) => {
     try {
       const control = await storage.getControlByNumber(req.params.controlNumber);
@@ -546,6 +573,19 @@ export async function registerRoutes(
         }));
       }
 
+      // Get organisation profile for AI context
+      const orgProfile = await storage.getOrganisationProfile();
+      const organisationContext = orgProfile ? {
+        companyName: orgProfile.companyName,
+        industry: orgProfile.industry,
+        companySize: orgProfile.companySize,
+        techStack: orgProfile.techStack,
+        deploymentModel: orgProfile.deploymentModel,
+        regulatoryRequirements: orgProfile.regulatoryRequirements,
+        riskAppetite: orgProfile.riskAppetite,
+        additionalContext: orgProfile.additionalContext,
+      } : null;
+
       // Convert ontology questions to the AI format
       const aiQuestions: AIQuestion[] = questionnaire.questions.map(q => ({
         question_id: q.question_id,
@@ -574,6 +614,7 @@ export async function registerRoutes(
         responses,
         comments,
         previousTests,
+        organisationContext,
         (text) => {
           res.write(`event: token\ndata: ${JSON.stringify({ text })}\n\n`);
         }
@@ -770,33 +811,6 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating organisation profile:", error);
       res.status(500).json({ error: "Failed to update organisation profile" });
-    }
-  });
-
-  // Control Applicability endpoints
-  app.get("/api/controls/applicability", async (req, res) => {
-    try {
-      const applicability = await storage.getControlsApplicability();
-      res.json(applicability);
-    } catch (error) {
-      console.error("Error fetching control applicability:", error);
-      res.status(500).json({ error: "Failed to fetch control applicability" });
-    }
-  });
-
-  app.patch("/api/controls/applicability", async (req, res) => {
-    try {
-      const { updates } = req.body;
-      
-      if (!Array.isArray(updates)) {
-        return res.status(400).json({ error: "Updates must be an array" });
-      }
-
-      const updatedCount = await storage.updateControlsApplicability(updates);
-      res.json({ updated: updatedCount });
-    } catch (error) {
-      console.error("Error updating control applicability:", error);
-      res.status(500).json({ error: "Failed to update control applicability" });
     }
   });
 

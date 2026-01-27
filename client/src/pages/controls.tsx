@@ -77,6 +77,10 @@ function SortIcon({ field, sortField, sortDirection }: { field: SortField; sortF
   return sortDirection === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
 }
 
+interface OrganisationProfile {
+  hideNonApplicableControls?: boolean;
+}
+
 export default function Controls() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,6 +101,12 @@ export default function Controls() {
     queryKey: ["/api/categories"],
   });
 
+  const { data: profile } = useQuery<OrganisationProfile | null>({
+    queryKey: ["/api/settings/profile"],
+  });
+
+  const hideNonApplicable = profile?.hideNonApplicableControls ?? false;
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -110,6 +120,11 @@ export default function Controls() {
     if (!controls) return [];
 
     let result = [...controls];
+
+    // Filter out non-applicable controls if preference is set
+    if (hideNonApplicable) {
+      result = result.filter((c) => c.organisationControl?.isApplicable !== false);
+    }
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();

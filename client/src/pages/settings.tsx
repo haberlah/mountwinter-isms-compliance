@@ -1,8 +1,29 @@
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Settings as SettingsIcon, 
@@ -13,9 +34,14 @@ import {
   Database,
   Key,
   Calendar,
-  BarChart3
+  BarChart3,
+  Building2,
+  Shield,
+  Save,
+  Loader2
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { OrganisationProfile, ControlApplicability, ControlCategory } from "@shared/schema";
 
 interface SettingsData {
   ai: {
@@ -42,12 +68,109 @@ interface TestApiResponse {
   model?: string;
 }
 
+const INDUSTRIES = [
+  "Financial Services",
+  "Healthcare",
+  "Technology / SaaS",
+  "Retail / E-commerce",
+  "Manufacturing",
+  "Government",
+  "Education",
+  "Other"
+];
+
+const COMPANY_SIZES = [
+  "1-50 employees",
+  "51-200 employees",
+  "201-1000 employees",
+  "1000+ employees"
+];
+
+const DEPLOYMENT_MODELS = [
+  "Cloud-native SaaS",
+  "Cloud-hosted (IaaS)",
+  "Hybrid (Cloud + On-premise)",
+  "On-premise only"
+];
+
+const REGULATORY_REQUIREMENTS = [
+  "ISO 27001",
+  "SOC 2",
+  "CPS 234 (APRA)",
+  "CPS 230 (APRA)",
+  "GDPR",
+  "HIPAA",
+  "PCI-DSS",
+  "SOX",
+  "NIST CSF",
+  "Essential Eight",
+  "FedRAMP",
+  "Other"
+];
+
+const DATA_CLASSIFICATION_LEVELS = [
+  "Public",
+  "Internal",
+  "Confidential",
+  "Restricted / Secret"
+];
+
 export default function Settings() {
   const { toast } = useToast();
 
   const { data: settings, isLoading, error } = useQuery<SettingsData>({
     queryKey: ["/api/settings"],
   });
+
+  const { data: profile, isLoading: profileLoading } = useQuery<OrganisationProfile | null>({
+    queryKey: ["/api/settings/profile"],
+  });
+
+  const { data: applicability, isLoading: applicabilityLoading } = useQuery<ControlApplicability[]>({
+    queryKey: ["/api/controls/applicability"],
+  });
+
+  const { data: categories } = useQuery<ControlCategory[]>({
+    queryKey: ["/api/categories"],
+  });
+
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({
+    companyName: "",
+    industry: "",
+    companySize: "",
+    techStack: "",
+    deploymentModel: "",
+    regulatoryRequirements: [] as string[],
+    dataClassificationLevels: [] as string[],
+    riskAppetite: "Moderate" as "Conservative" | "Moderate" | "Aggressive",
+    additionalContext: "",
+    hideNonApplicableControls: false,
+  });
+  const [profileDirty, setProfileDirty] = useState(false);
+
+  // Applicability state
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [applicabilityChanges, setApplicabilityChanges] = useState<Map<number, boolean>>(new Map());
+  const [selectedControls, setSelectedControls] = useState<Set<number>>(new Set());
+
+  // Initialize profile form when data loads
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        companyName: profile.companyName || "",
+        industry: profile.industry || "",
+        companySize: profile.companySize || "",
+        techStack: profile.techStack || "",
+        deploymentModel: profile.deploymentModel || "",
+        regulatoryRequirements: profile.regulatoryRequirements || [],
+        dataClassificationLevels: profile.dataClassificationLevels || [],
+        riskAppetite: profile.riskAppetite || "Moderate",
+        additionalContext: profile.additionalContext || "",
+        hideNonApplicableControls: profile.hideNonApplicableControls || false,
+      });
+    }
+  }, [profile]);
 
   const testApiMutation = useMutation<TestApiResponse>({
     mutationFn: async () => {
@@ -78,6 +201,52 @@ export default function Settings() {
     },
   });
 
+  const saveProfileMutation = useMutation({
+    mutationFn: async (data: typeof profileForm) => {
+      const res = await apiRequest("PUT", "/api/settings/profile", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/profile"] });
+      setProfileDirty(false);
+      toast({
+        title: "Profile Saved",
+        description: "Organization profile updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save profile",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveApplicabilityMutation = useMutation({
+    mutationFn: async (updates: { controlId: number; isApplicable: boolean }[]) => {
+      const res = await apiRequest("PATCH", "/api/controls/applicability", { updates });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/controls/applicability"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      setApplicabilityChanges(new Map());
+      toast({
+        title: "Changes Saved",
+        description: "Control applicability updated",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save changes",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleExportTestHistory = () => {
     window.open("/api/export/test-history", "_blank");
     toast({
@@ -85,6 +254,117 @@ export default function Settings() {
       description: "Test history CSV is being downloaded",
     });
   };
+
+  const updateProfileField = (field: keyof typeof profileForm, value: any) => {
+    setProfileForm(prev => ({ ...prev, [field]: value }));
+    setProfileDirty(true);
+  };
+
+  const toggleRegulatoryRequirement = (req: string) => {
+    const current = profileForm.regulatoryRequirements;
+    if (current.includes(req)) {
+      updateProfileField("regulatoryRequirements", current.filter(r => r !== req));
+    } else {
+      updateProfileField("regulatoryRequirements", [...current, req]);
+    }
+  };
+
+  const toggleDataClassification = (level: string) => {
+    const current = profileForm.dataClassificationLevels;
+    if (current.includes(level)) {
+      updateProfileField("dataClassificationLevels", current.filter(l => l !== level));
+    } else {
+      updateProfileField("dataClassificationLevels", [...current, level]);
+    }
+  };
+
+  // Filtered applicability list
+  const filteredApplicability = useMemo(() => {
+    if (!applicability) return [];
+    if (categoryFilter === "all") return applicability;
+    return applicability.filter(c => c.category === categoryFilter);
+  }, [applicability, categoryFilter]);
+
+  const getApplicableStatus = (controlId: number, originalStatus: boolean) => {
+    return applicabilityChanges.has(controlId) 
+      ? applicabilityChanges.get(controlId)! 
+      : originalStatus;
+  };
+
+  const toggleApplicability = (controlId: number, currentStatus: boolean) => {
+    const original = applicability?.find(c => c.controlId === controlId)?.isApplicable ?? true;
+    const newValue = !currentStatus;
+    
+    if (newValue === original) {
+      const updated = new Map(applicabilityChanges);
+      updated.delete(controlId);
+      setApplicabilityChanges(updated);
+    } else {
+      setApplicabilityChanges(new Map(applicabilityChanges).set(controlId, newValue));
+    }
+  };
+
+  const selectAllVisible = () => {
+    const visibleIds = new Set(filteredApplicability.map(c => c.controlId));
+    setSelectedControls(visibleIds);
+  };
+
+  const deselectAllVisible = () => {
+    setSelectedControls(new Set());
+  };
+
+  const setSelectedApplicability = (isApplicable: boolean) => {
+    const updates = new Map(applicabilityChanges);
+    selectedControls.forEach(controlId => {
+      const original = applicability?.find(c => c.controlId === controlId)?.isApplicable ?? true;
+      if (isApplicable === original) {
+        updates.delete(controlId);
+      } else {
+        updates.set(controlId, isApplicable);
+      }
+    });
+    setApplicabilityChanges(updates);
+    setSelectedControls(new Set());
+  };
+
+  const saveApplicabilityChanges = async () => {
+    const updates = Array.from(applicabilityChanges.entries()).map(([controlId, isApplicable]) => ({
+      controlId,
+      isApplicable,
+    }));
+    
+    // Save both applicability changes and the hide setting together
+    if (updates.length > 0) {
+      saveApplicabilityMutation.mutate(updates);
+    }
+    
+    // Always save the hide setting to profile
+    try {
+      await apiRequest("PUT", "/api/settings/profile", {
+        ...profileForm,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/profile"] });
+      
+      // Show single toast if no applicability changes
+      if (updates.length === 0) {
+        toast({
+          title: "Changes Saved",
+          description: "Settings updated",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save settings",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const applicableCount = useMemo(() => {
+    if (!applicability) return 0;
+    return applicability.filter(c => getApplicableStatus(c.controlId, c.isApplicable)).length;
+  }, [applicability, applicabilityChanges]);
 
   if (isLoading) {
     return (
@@ -211,6 +491,343 @@ export default function Settings() {
                 <p className="text-lg font-medium" data-testid="text-default-quarter">{settings.defaults.startQuarter}</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Organization Profile */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Organization Profile
+            </CardTitle>
+            <CardDescription>
+              This information helps the AI provide more relevant compliance guidance tailored to your organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {profileLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Company Name</Label>
+                    <Input
+                      id="companyName"
+                      placeholder="Acme Corporation"
+                      value={profileForm.companyName}
+                      onChange={(e) => updateProfileField("companyName", e.target.value)}
+                      data-testid="input-company-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="industry">Industry</Label>
+                    <Select value={profileForm.industry} onValueChange={(v) => updateProfileField("industry", v)}>
+                      <SelectTrigger data-testid="select-industry">
+                        <SelectValue placeholder="Select industry" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INDUSTRIES.map((ind) => (
+                          <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="companySize">Company Size</Label>
+                    <Select value={profileForm.companySize} onValueChange={(v) => updateProfileField("companySize", v)}>
+                      <SelectTrigger data-testid="select-company-size">
+                        <SelectValue placeholder="Select size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COMPANY_SIZES.map((size) => (
+                          <SelectItem key={size} value={size}>{size}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="deploymentModel">Deployment Model</Label>
+                    <Select value={profileForm.deploymentModel} onValueChange={(v) => updateProfileField("deploymentModel", v)}>
+                      <SelectTrigger data-testid="select-deployment-model">
+                        <SelectValue placeholder="Select deployment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPLOYMENT_MODELS.map((model) => (
+                          <SelectItem key={model} value={model}>{model}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="techStack">Technology Stack</Label>
+                  <Textarea
+                    id="techStack"
+                    placeholder="AWS, React, Node.js, PostgreSQL, Kubernetes..."
+                    value={profileForm.techStack}
+                    onChange={(e) => updateProfileField("techStack", e.target.value)}
+                    data-testid="textarea-tech-stack"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Regulatory Requirements</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {REGULATORY_REQUIREMENTS.map((req) => (
+                      <Badge
+                        key={req}
+                        variant={profileForm.regulatoryRequirements.includes(req) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleRegulatoryRequirement(req)}
+                        data-testid={`badge-reg-${req.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`}
+                      >
+                        {req}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Data Classification Levels</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {DATA_CLASSIFICATION_LEVELS.map((level) => (
+                      <Badge
+                        key={level}
+                        variant={profileForm.dataClassificationLevels.includes(level) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleDataClassification(level)}
+                        data-testid={`badge-data-${level.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`}
+                      >
+                        {level}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Risk Appetite</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {[
+                      { value: "Conservative", label: "Conservative", desc: "Minimize all risks" },
+                      { value: "Moderate", label: "Moderate", desc: "Balance risk with business" },
+                      { value: "Aggressive", label: "Aggressive", desc: "Accept risk for agility" },
+                    ].map((option) => (
+                      <div
+                        key={option.value}
+                        className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                          profileForm.riskAppetite === option.value
+                            ? "border-primary bg-primary/5"
+                            : "hover-elevate"
+                        }`}
+                        onClick={() => updateProfileField("riskAppetite", option.value)}
+                        data-testid={`option-risk-${option.value.toLowerCase()}`}
+                      >
+                        <p className="font-medium">{option.label}</p>
+                        <p className="text-xs text-muted-foreground">{option.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="additionalContext">Additional Context for AI</Label>
+                  <Textarea
+                    id="additionalContext"
+                    rows={4}
+                    placeholder="Any other context that would help the AI understand your organization..."
+                    value={profileForm.additionalContext}
+                    onChange={(e) => updateProfileField("additionalContext", e.target.value)}
+                    data-testid="textarea-additional-context"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    onClick={() => saveProfileMutation.mutate(profileForm)}
+                    disabled={saveProfileMutation.isPending || !profileDirty}
+                    data-testid="button-save-profile"
+                  >
+                    {saveProfileMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Profile
+                      </>
+                    )}
+                  </Button>
+                  {profileDirty && (
+                    <span className="text-sm text-muted-foreground">Unsaved changes</span>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Control Applicability */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Control Applicability
+            </CardTitle>
+            <CardDescription>
+              Select which controls are applicable to your organization. Non-applicable controls are excluded from compliance calculations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {applicabilityLoading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-md bg-muted/50">
+                  <span className="font-medium" data-testid="text-applicable-count">
+                    {applicableCount} of {applicability?.length || 0} controls applicable
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={profileForm.hideNonApplicableControls}
+                      onCheckedChange={(checked) => {
+                        updateProfileField("hideNonApplicableControls", checked);
+                      }}
+                      data-testid="switch-hide-non-applicable"
+                    />
+                    <Label className="text-sm">Hide non-applicable in Controls list</Label>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 items-center">
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-[200px]" data-testid="select-applicability-category">
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories?.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={selectAllVisible} data-testid="button-select-all">
+                    Select All
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={deselectAllVisible} data-testid="button-deselect-all">
+                    Deselect All
+                  </Button>
+                  {selectedControls.size > 0 && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedApplicability(true)}>
+                        Set Selected Applicable
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedApplicability(false)}>
+                        Set Selected Not Applicable
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[40px]">
+                          <Checkbox
+                            checked={selectedControls.size === filteredApplicability.length && filteredApplicability.length > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) selectAllVisible();
+                              else deselectAllVisible();
+                            }}
+                            data-testid="checkbox-select-all-header"
+                          />
+                        </TableHead>
+                        <TableHead className="w-[100px]">Control #</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead className="w-[180px]">Category</TableHead>
+                        <TableHead className="w-[100px]">Applicable</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredApplicability.map((control) => {
+                        const isApplicable = getApplicableStatus(control.controlId, control.isApplicable);
+                        const isSelected = selectedControls.has(control.controlId);
+                        const hasChange = applicabilityChanges.has(control.controlId);
+                        
+                        return (
+                          <TableRow 
+                            key={control.controlId}
+                            className={hasChange ? "bg-amber-50 dark:bg-amber-900/10" : ""}
+                          >
+                            <TableCell>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => {
+                                  const updated = new Set(selectedControls);
+                                  if (checked) updated.add(control.controlId);
+                                  else updated.delete(control.controlId);
+                                  setSelectedControls(updated);
+                                }}
+                                data-testid={`checkbox-control-${control.controlNumber}`}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{control.controlNumber}</TableCell>
+                            <TableCell className="max-w-[300px] truncate">{control.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{control.category}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={isApplicable}
+                                onCheckedChange={() => toggleApplicability(control.controlId, isApplicable)}
+                                data-testid={`switch-applicable-${control.controlNumber}`}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    onClick={saveApplicabilityChanges}
+                    disabled={(applicabilityChanges.size === 0 && profileForm.hideNonApplicableControls === (profile?.hideNonApplicableControls ?? false)) || saveApplicabilityMutation.isPending}
+                    data-testid="button-save-applicability"
+                  >
+                    {saveApplicabilityMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                  {applicabilityChanges.size > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      {applicabilityChanges.size} unsaved change{applicabilityChanges.size !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

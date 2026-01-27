@@ -147,15 +147,57 @@ export interface PersonaAnalysisResult {
   persona_specific: Record<string, unknown>;
 }
 
+export interface OrganisationContext {
+  companyName?: string | null;
+  industry?: string | null;
+  companySize?: string | null;
+  techStack?: string | null;
+  deploymentModel?: string | null;
+  regulatoryRequirements?: string[] | null;
+  riskAppetite?: string | null;
+  additionalContext?: string | null;
+}
+
+export function buildOrganisationContextSection(context: OrganisationContext | null): string {
+  if (!context) return '';
+  
+  const parts: string[] = [];
+  if (context.companyName) parts.push(`- Company: ${context.companyName}`);
+  if (context.industry) parts.push(`- Industry: ${context.industry}`);
+  if (context.companySize) parts.push(`- Size: ${context.companySize}`);
+  if (context.techStack) parts.push(`- Tech Stack: ${context.techStack}`);
+  if (context.deploymentModel) parts.push(`- Deployment: ${context.deploymentModel}`);
+  if (context.regulatoryRequirements?.length) parts.push(`- Regulatory Requirements: ${context.regulatoryRequirements.join(', ')}`);
+  if (context.riskAppetite) parts.push(`- Risk Appetite: ${context.riskAppetite}`);
+  if (context.additionalContext) parts.push(`- Additional Context: ${context.additionalContext}`);
+  
+  if (parts.length === 0) return '';
+  
+  return `
+
+## Organization Context
+${parts.join('\n')}
+
+When evaluating responses, consider this organizational context:
+- Tailor recommendations to the company's industry and size
+- Reference relevant regulatory requirements they must meet
+- Adjust expectations based on their risk appetite
+- Consider their tech stack when discussing technical controls
+`;
+}
+
 export function buildAnalysisSystemPrompt(
   persona: Persona,
   controlNumber: string,
   controlName: string,
-  questions: OntologyQuestion[]
+  questions: OntologyQuestion[],
+  organisationContext?: OrganisationContext | null
 ): string {
   const basePrompt = `You are an ISO 27001:2022 compliance ${persona.toLowerCase()} analyzing responses for control ${controlNumber}: ${controlName}.
 
 Your task is to evaluate whether the responses demonstrate adequate implementation and suggest an appropriate test status.`;
+
+  const orgContext = buildOrganisationContextSection(organisationContext || null);
 
   const personaPrompts: Record<Persona, string> = {
     Auditor: `
@@ -220,7 +262,7 @@ Include in persona_specific:
 - suggested_kpis: array of KPI suggestions`
   };
 
-  return `${basePrompt}\n${personaPrompts[persona]}`;
+  return `${basePrompt}${orgContext}\n${personaPrompts[persona]}`;
 }
 
 export function buildAnalysisUserMessage(
@@ -275,9 +317,10 @@ export async function streamAnalysis(
   responses: QuestionResponse[],
   comments: string,
   previousTests?: TestRunHistory[],
+  organisationContext?: OrganisationContext | null,
   onToken?: (text: string) => void
 ): Promise<{ analysis: PersonaAnalysisResult; tokensUsed: number; fullText: string }> {
-  const systemPrompt = buildAnalysisSystemPrompt(persona, controlNumber, controlName, questions);
+  const systemPrompt = buildAnalysisSystemPrompt(persona, controlNumber, controlName, questions, organisationContext);
   const userMessage = buildAnalysisUserMessage(questions, responses, comments, previousTests);
 
   const stream = await anthropic.messages.stream({
