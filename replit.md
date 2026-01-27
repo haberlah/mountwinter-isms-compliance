@@ -2,6 +2,16 @@
 
 ## Recent Changes (January 2026)
 
+### Ontology Migration (Completed)
+- Upgraded from 90 to 100 controls with enhanced ISO 27001:2022 ontology
+- Loaded 503 audit questions from iso_27001_ontology.json
+- Added persona support: Auditor (282 questions), Advisor (195 questions), Analyst (26 questions)
+- New schema column: selected_persona in organisation_controls (defaults to "Auditor")
+- New TypeScript types: Persona, OntologyQuestion, ControlQuestionnaire, Severity
+- Ontology loader script: server/load-ontology.ts handles FK constraints and data migration
+- Questions include rich metadata: guidance, auditor_focus, evidence_type, what_good_looks_like, red_flags, nc_pattern, severity, primary_persona
+- Test history was reset during migration (expected for V1 upgrade)
+
 ### Prompt 5 - Test Recording (Completed)
 - Test recording form page at /controls/:controlNumber/test
 - Status dropdown with 6 options (Pass, PassPrevious, Fail, Blocked, NotAttempted, ContinualImprovement)
@@ -48,7 +58,7 @@
 
 ## Overview
 
-This is an ISO 27001:2022 Information Security Management System (ISMS) compliance tracking application. It helps organizations manage and assess security controls through AI-powered questionnaire generation and compliance analysis. The system tracks 90 ISO 27001 controls across 5 categories, supports test run tracking, and integrates with Claude AI for generating assessment questionnaires and analyzing compliance responses.
+This is an ISO 27001:2022 Information Security Management System (ISMS) compliance tracking application. It helps organizations manage and assess security controls through AI-powered questionnaire generation and compliance analysis. The system tracks 100 ISO 27001 controls across 5 categories with 503 persona-based audit questions, supports test run tracking, and integrates with Claude AI for analyzing compliance responses.
 
 ## User Preferences
 
@@ -86,7 +96,7 @@ The server is structured with:
 The database schema (`shared/schema.ts`) includes:
 - **users** - System users with roles (admin, compliance_officer, auditor)
 - **control_categories** - 5 categories for organizing controls
-- **controls** - 90 ISO 27001:2022 controls with metadata and AI questionnaires
+- **controls** - 100 ISO 27001:2022 controls with metadata and pre-loaded questionnaires (from ontology)
 - **organisation_controls** - Per-organization control configuration and overrides
 - **test_runs** - Immutable audit trail of control assessments
 - **ai_interactions** - Logging of all AI API calls
@@ -120,12 +130,12 @@ Schema uses Drizzle with PostgreSQL enums for type safety on frequencies, quarte
 - **recharts** - Dashboard charts and visualizations
 
 ### Seed Data
-- Controls data loaded from `seed-data/controls.json` on first startup
-- Contains 90 organization-specific controls organized into 5 categories:
+- Controls data loaded from `seed-data/iso_27001_ontology.json` on first startup
+- Contains 100 organization-specific controls organized into 5 categories:
   - ISMS Requirements (Clauses 4-10): 7 controls (RQ4-RQ10)
-  - Organisational Controls: 38 controls (5.1-5.37)
+  - Organisational Controls: 37 controls (5.1-5.37)
   - People Controls: 8 controls (6.1-6.8)
-  - Physical Controls: 3 controls (7.x)
+  - Physical Controls: 14 controls (7.1-7.14)
   - Technological Controls: 34 controls (8.1-8.34)
 - Each control includes:
   - Organization-specific control numbers (e.g., RQ4, 5.1a, 8.17a)
@@ -133,3 +143,5 @@ Schema uses Drizzle with PostgreSQL enums for type safety on frequencies, quarte
   - APRA CPS230 operational resilience references
   - ISO 27001:2022 Annex A cross-references
   - Default test frequency and owner roles
+  - Pre-loaded questionnaire with persona-based questions (503 total)
+- Question metadata includes: guidance, auditor_focus, evidence_type, what_good_looks_like, red_flags, nc_pattern, severity, primary_persona
