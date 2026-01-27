@@ -2,8 +2,19 @@
 
 ## Recent Changes (January 2026)
 
+### Prompt 4 - Control Detail & Settings (Completed)
+- Enhanced control detail page with tabbed interface (AI Questionnaire, Test History, Implementation)
+- Control Settings sidebar displaying current configuration (applicability, frequency, owner, start quarter)
+- Edit Settings form with applicability toggle, frequency override, and start quarter selection
+- Exclusion justification required when marking controls as inapplicable
+- Due date calculation on settings save (Annual uses start quarter, Quarterly respects start quarter pattern, Monthly advances to next month)
+- Test history displays in reverse chronological order with AI confidence and suggested status indicators
+- Implementation tab shows questionnaire responses from previous tests
+- Controls list updated with Owner and Last Tested columns
+- API: PATCH /api/organisation-controls/:controlId with due date calculation
+
 ### Prompt 3 - Controls List (Completed)
-- Added controls list page with sortable table (Control #, Name, Category, Status, Frequency)
+- Added controls list page with sortable table (Control #, Name, Category, Status, Frequency, Owner, Last Tested)
 - Summary stats cards showing Total, Passed, Failed, Not Tested counts
 - Search functionality for filtering by control number, name, or category
 - Dropdown filters for category and status
