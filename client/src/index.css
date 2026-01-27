@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE - Professional Compliance Theme */
+/* LIGHT MODE - Linear-style Minimal Monochrome with Blue Accent */
 :root {
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
@@ -14,64 +14,59 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 210 20% 98%;
+  /* Background: zinc-50 (#FAFAFA) */
+  --background: 240 5% 98%;
 
-  --foreground: 222 47% 11%;
+  /* Text primary: zinc-900 (#18181B) */
+  --foreground: 240 6% 10%;
 
-  --border: 214 20% 88%;
+  /* Borders: zinc-200 (#E4E4E7) */
+  --border: 240 6% 90%;
 
+  /* Cards: white (#FFFFFF) */
   --card: 0 0% 100%;
+  --card-foreground: 240 6% 10%;
+  --card-border: 240 6% 90%;
 
-  --card-foreground: 222 47% 11%;
+  /* Sidebar: zinc-100 (#F4F4F5) */
+  --sidebar: 240 5% 96%;
+  --sidebar-foreground: 240 6% 10%;
+  --sidebar-border: 240 6% 90%;
 
-  --card-border: 214 20% 90%;
-
-  --sidebar: 215 25% 97%;
-
-  --sidebar-foreground: 222 47% 11%;
-
-  --sidebar-border: 214 20% 88%;
-
-  --sidebar-primary: 217 91% 50%;
-
+  /* Primary accent: blue-600 (#2563EB) */
+  --sidebar-primary: 217 91% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 214 32% 91%;
-
-  --sidebar-accent-foreground: 222 47% 11%;
-
-  --sidebar-ring: 217 91% 50%;
+  /* Active nav: zinc-200 */
+  --sidebar-accent: 240 5% 90%;
+  --sidebar-accent-foreground: 240 6% 10%;
+  --sidebar-ring: 217 91% 60%;
 
   --popover: 0 0% 100%;
+  --popover-foreground: 240 6% 10%;
+  --popover-border: 240 6% 90%;
 
-  --popover-foreground: 222 47% 11%;
-
-  --popover-border: 214 20% 88%;
-
-  --primary: 217 91% 50%;
-
+  /* Primary accent: blue-600 (#2563EB) */
+  --primary: 217 91% 60%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 214 32% 91%;
+  --secondary: 240 5% 96%;
+  --secondary-foreground: 240 6% 10%;
 
-  --secondary-foreground: 222 47% 20%;
+  --muted: 240 5% 96%;
+  /* Text secondary: zinc-500 (#71717A) */
+  --muted-foreground: 240 4% 46%;
 
-  --muted: 210 20% 96%;
-
-  --muted-foreground: 215 16% 47%;
-
-  --accent: 214 32% 91%;
-
-  --accent-foreground: 222 47% 11%;
+  --accent: 240 5% 96%;
+  --accent-foreground: 240 6% 10%;
 
   --destructive: 0 84% 60%;
-
   --destructive-foreground: 0 0% 100%;
 
-  --input: 214 20% 88%;
-  --ring: 217 91% 50%;
+  --input: 240 6% 90%;
+  --ring: 217 91% 60%;
   --chart-1: 142 71% 45%;
-  --chart-2: 217 91% 50%;
+  --chart-2: 217 91% 60%;
   --chart-3: 45 93% 47%;
   --chart-4: 0 84% 60%;
   --chart-5: 262 83% 58%;
