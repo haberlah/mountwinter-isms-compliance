@@ -6,7 +6,8 @@ import {
   type OrganisationControl, type InsertOrganisationControl,
   type TestRun, type InsertTestRun,
   type AiInteraction, type InsertAiInteraction,
-  type DashboardStats, type ControlWithDetails, type TestRunWithDetails
+  type DashboardStats, type ControlWithDetails, type TestRunWithDetails,
+  type ControlsStats, type ControlWithLatestTest
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, isNull, count, asc } from "drizzle-orm";
@@ -25,6 +26,8 @@ export interface IStorage {
 
   // Controls
   getControls(): Promise<(Control & { category: ControlCategory; organisationControl: OrganisationControl | null })[]>;
+  getControlsWithLatestTest(): Promise<ControlWithLatestTest[]>;
+  getControlsStats(): Promise<ControlsStats>;
   getControlByNumber(controlNumber: string): Promise<ControlWithDetails | undefined>;
   getControlById(id: number): Promise<Control | undefined>;
   createControl(control: InsertControl): Promise<Control>;
@@ -104,6 +107,81 @@ export class DatabaseStorage implements IStorage {
       category: row.control_categories,
       organisationControl: row.organisation_controls,
     }));
+  }
+
+  async getControlsWithLatestTest(): Promise<ControlWithLatestTest[]> {
+    const result = await db
+      .select()
+      .from(controls)
+      .innerJoin(controlCategories, eq(controls.categoryId, controlCategories.id))
+      .leftJoin(organisationControls, eq(controls.id, organisationControls.controlId))
+      .orderBy(asc(controlCategories.sortOrder), asc(controls.controlNumber));
+
+    const allTestRuns = await db
+      .select()
+      .from(testRuns)
+      .orderBy(desc(testRuns.testDate));
+
+    const latestTestByOrgControl = new Map<number, TestRun>();
+    for (const run of allTestRuns) {
+      if (!latestTestByOrgControl.has(run.organisationControlId)) {
+        latestTestByOrgControl.set(run.organisationControlId, run);
+      }
+    }
+
+    return result.map((row) => {
+      const orgControl = row.organisation_controls;
+      const latestTestRun = orgControl ? latestTestByOrgControl.get(orgControl.id) || null : null;
+      return {
+        ...row.controls,
+        category: row.control_categories,
+        organisationControl: orgControl,
+        latestTestRun,
+      };
+    });
+  }
+
+  async getControlsStats(): Promise<ControlsStats> {
+    const controlsWithTests = await this.getControlsWithLatestTest();
+    
+    let passed = 0;
+    let failed = 0;
+    let blocked = 0;
+    let notAttempted = 0;
+
+    for (const control of controlsWithTests) {
+      const latestTest = control.latestTestRun;
+      if (!latestTest) {
+        notAttempted++;
+        continue;
+      }
+
+      switch (latestTest.status) {
+        case "Pass":
+        case "PassPrevious":
+        case "ContinualImprovement":
+          passed++;
+          break;
+        case "Fail":
+          failed++;
+          break;
+        case "Blocked":
+          blocked++;
+          break;
+        case "NotAttempted":
+        default:
+          notAttempted++;
+          break;
+      }
+    }
+
+    return {
+      total: controlsWithTests.length,
+      passed,
+      failed,
+      blocked,
+      notAttempted,
+    };
   }
 
   async getControlByNumber(controlNumber: string): Promise<ControlWithDetails | undefined> {

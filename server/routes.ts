@@ -51,11 +51,22 @@ export async function registerRoutes(
   // Controls
   app.get("/api/controls", async (req, res) => {
     try {
-      const controls = await storage.getControls();
+      const controls = await storage.getControlsWithLatestTest();
       res.json(controls);
     } catch (error) {
       console.error("Error fetching controls:", error);
       res.status(500).json({ error: "Failed to fetch controls" });
+    }
+  });
+
+  // Controls stats
+  app.get("/api/controls/stats", async (req, res) => {
+    try {
+      const stats = await storage.getControlsStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching controls stats:", error);
+      res.status(500).json({ error: "Failed to fetch controls stats" });
     }
   });
 

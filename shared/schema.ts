@@ -225,3 +225,17 @@ export type DashboardStats = {
   }>;
   recentTestRuns: TestRunWithDetails[];
 };
+
+export type ControlsStats = {
+  total: number;
+  passed: number;
+  failed: number;
+  blocked: number;
+  notAttempted: number;
+};
+
+export type ControlWithLatestTest = Control & {
+  category: ControlCategory;
+  organisationControl: OrganisationControl | null;
+  latestTestRun: TestRun | null;
+};
