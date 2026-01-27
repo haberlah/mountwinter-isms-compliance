@@ -2,23 +2,20 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Shield,
-  ClipboardCheck,
-  History,
   Settings,
-  Brain,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const navItems = [
   {
@@ -32,19 +29,15 @@ const navItems = [
     icon: Shield,
   },
   {
-    title: "Test Results",
-    url: "/test-runs",
-    icon: ClipboardCheck,
-  },
-  {
-    title: "AI Activity",
-    url: "/ai-activity",
-    icon: Brain,
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
   },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user } = useCurrentUser();
 
   return (
     <Sidebar>
@@ -54,14 +47,13 @@ export function AppSidebar() {
             <Shield className="h-5 w-5" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold">ISMS Tracker</span>
-            <span className="text-xs text-muted-foreground">ISO 27001:2022</span>
+            <span className="text-sm font-semibold tracking-tight">MWC - ISMS Compliance</span>
+            <span className="text-xs text-muted-foreground">Tracker</span>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
@@ -70,7 +62,10 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                      <Link 
+                        href={item.url} 
+                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </Link>
@@ -85,11 +80,11 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-medium">
-            A
+            {user.name.charAt(0)}
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-medium">Admin</span>
-            <span className="text-xs text-muted-foreground">admin@local</span>
+            <span className="text-sm font-medium">{user.name}</span>
+            <span className="text-xs text-muted-foreground capitalize">{user.role}</span>
           </div>
         </div>
       </SidebarFooter>
