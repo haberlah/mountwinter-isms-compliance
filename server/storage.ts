@@ -357,6 +357,8 @@ export class DatabaseStorage implements IStorage {
     let failedControls = 0;
     let notTestedControls = 0;
     let testedControls = 0;
+    let blockedControls = 0;
+    let continualImprovementControls = 0;
 
     for (const control of applicableControls) {
       const orgControl = control.organisationControl;
@@ -372,10 +374,15 @@ export class DatabaseStorage implements IStorage {
       }
 
       testedControls++;
-      if (latestTest.status === "Pass" || latestTest.status === "PassPrevious" || latestTest.status === "ContinualImprovement") {
+      if (latestTest.status === "Pass" || latestTest.status === "PassPrevious") {
         passedControls++;
+      } else if (latestTest.status === "ContinualImprovement") {
+        passedControls++;
+        continualImprovementControls++;
       } else if (latestTest.status === "Fail") {
         failedControls++;
+      } else if (latestTest.status === "Blocked") {
+        blockedControls++;
       } else {
         notTestedControls++;
       }
@@ -383,6 +390,38 @@ export class DatabaseStorage implements IStorage {
 
     const compliancePercentage = applicableCount > 0 
       ? (passedControls / applicableCount) * 100 
+      : 0;
+
+    // Questionnaire progress calculation
+    let totalQuestions = 0;
+    let answeredQuestions = 0;
+    let controlsComplete = 0;
+    let controlsPartial = 0;
+    let controlsNotStarted = 0;
+
+    for (const control of allControls) {
+      const questionnaire = control.aiQuestionnaire as { questions?: { question_id: number }[] } | null;
+      const questionCount = questionnaire?.questions?.length || 0;
+      totalQuestions += questionCount;
+
+      const orgControl = control.organisationControl;
+      const responses = (orgControl?.implementationResponses as { responses?: { question_id: number; response_text?: string }[] } | null)?.responses || [];
+      const answeredCount = responses.filter(r => r.response_text?.trim()).length;
+      answeredQuestions += answeredCount;
+
+      if (questionCount > 0) {
+        if (answeredCount === 0) {
+          controlsNotStarted++;
+        } else if (answeredCount >= questionCount) {
+          controlsComplete++;
+        } else {
+          controlsPartial++;
+        }
+      }
+    }
+
+    const questionnairePercentage = totalQuestions > 0 
+      ? (answeredQuestions / totalQuestions) * 100 
       : 0;
 
     // Category breakdown
@@ -423,22 +462,34 @@ export class DatabaseStorage implements IStorage {
       };
     });
 
-    // Upcoming tests (controls with next due date set)
-    const controlsWithDueDates = applicableControls
+    // Due soon - controls due in next 30 days (including overdue)
+    const dueSoon = applicableControls
       .filter((c) => c.organisationControl?.nextDueDate)
-      .map((c) => ({
-        controlNumber: c.controlNumber,
-        controlName: c.name,
-        nextDueDate: c.organisationControl!.nextDueDate!,
-        daysUntilDue: Math.ceil(
-          (new Date(c.organisationControl!.nextDueDate!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-        ),
-      }))
-      .filter((c) => c.daysUntilDue >= 0)
+      .map((c) => {
+        const latestTest = c.organisationControl ? latestByOrgControl.get(c.organisationControl.id) : null;
+        return {
+          controlNumber: c.controlNumber,
+          controlName: c.name,
+          dueDate: c.organisationControl!.nextDueDate!,
+          daysUntilDue: Math.ceil(
+            (new Date(c.organisationControl!.nextDueDate!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+          ),
+          lastTested: latestTest ? latestTest.testDate.toISOString() : null,
+        };
+      })
+      .filter((c) => c.daysUntilDue <= 30)
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
       .slice(0, 10);
 
-    const recentTestRuns = await this.getRecentTestRuns(5);
+    // Recent activity - last 10 test runs with details
+    const recentTestRuns = await this.getRecentTestRuns(10);
+    const recentActivity = recentTestRuns.map(run => ({
+      testDate: run.testDate.toISOString(),
+      controlNumber: run.organisationControl.control.controlNumber,
+      controlName: run.organisationControl.control.name,
+      status: run.status,
+      testerName: run.tester.name,
+    }));
 
     return {
       totalControls,
@@ -447,9 +498,20 @@ export class DatabaseStorage implements IStorage {
       passedControls,
       failedControls,
       notTestedControls,
+      blockedControls,
+      continualImprovementControls,
       compliancePercentage,
+      questionnaireProgress: {
+        totalQuestions,
+        answeredQuestions,
+        percentage: questionnairePercentage,
+        controlsComplete,
+        controlsPartial,
+        controlsNotStarted,
+      },
       categoryBreakdown,
-      upcomingTests: controlsWithDueDates,
+      dueSoon,
+      recentActivity,
       recentTestRuns,
     };
   }

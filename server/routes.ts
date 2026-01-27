@@ -34,7 +34,18 @@ export async function registerRoutes(
     console.log("✓ AI service configured");
   }
 
-  // Dashboard stats
+  // Dashboard - complete dashboard data
+  app.get("/api/dashboard", async (req, res) => {
+    try {
+      const stats = await storage.getDashboardStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard data" });
+    }
+  });
+
+  // Dashboard stats (legacy endpoint)
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();

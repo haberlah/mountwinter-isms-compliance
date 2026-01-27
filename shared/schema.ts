@@ -251,7 +251,17 @@ export type DashboardStats = {
   passedControls: number;
   failedControls: number;
   notTestedControls: number;
+  blockedControls: number;
+  continualImprovementControls: number;
   compliancePercentage: number;
+  questionnaireProgress: {
+    totalQuestions: number;
+    answeredQuestions: number;
+    percentage: number;
+    controlsComplete: number;
+    controlsPartial: number;
+    controlsNotStarted: number;
+  };
   categoryBreakdown: Array<{
     categoryId: number;
     categoryName: string;
@@ -260,11 +270,19 @@ export type DashboardStats = {
     failed: number;
     notTested: number;
   }>;
-  upcomingTests: Array<{
+  dueSoon: Array<{
     controlNumber: string;
     controlName: string;
-    nextDueDate: string;
+    dueDate: string;
     daysUntilDue: number;
+    lastTested: string | null;
+  }>;
+  recentActivity: Array<{
+    testDate: string;
+    controlNumber: string;
+    controlName: string;
+    status: string;
+    testerName: string;
   }>;
   recentTestRuns: TestRunWithDetails[];
 };
