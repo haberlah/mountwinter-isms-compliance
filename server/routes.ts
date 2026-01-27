@@ -183,22 +183,82 @@ export async function registerRoutes(
 
       const { isApplicable, frequency, exclusionJustification, startQuarter } = req.body;
 
+      // Calculate next due date based on frequency and start quarter
+      const calculateNextDueDate = (freq: string, quarter: string): string | null => {
+        if (!freq) return null;
+        
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-indexed
+        
+        // Quarter start months (0-indexed): Q1=Jan(0), Q2=Apr(3), Q3=Jul(6), Q4=Oct(9)
+        const quarterMonths: Record<string, number> = { Q1: 0, Q2: 3, Q3: 6, Q4: 9 };
+        const startMonth = quarterMonths[quarter] ?? 0;
+        
+        let nextDueDate: Date = new Date();
+        
+        switch (freq) {
+          case "Annual":
+            // Next occurrence of start quarter
+            nextDueDate = new Date(currentYear, startMonth, 1);
+            if (nextDueDate <= now) {
+              nextDueDate = new Date(currentYear + 1, startMonth, 1);
+            }
+            break;
+          case "Quarterly":
+            // Find next occurrence of start quarter month or any subsequent quarter
+            const quarterMonthsList = [0, 3, 6, 9]; // Q1, Q2, Q3, Q4 months
+            const startQuarterIndex = quarterMonthsList.indexOf(startMonth);
+            // Find the next quarter from the start quarter pattern
+            let foundNextQuarter = false;
+            for (let i = 0; i < 4; i++) {
+              const checkMonth = quarterMonthsList[(startQuarterIndex + i) % 4];
+              const checkYear = checkMonth < quarterMonthsList[startQuarterIndex] ? currentYear + 1 : currentYear;
+              const checkDate = new Date(checkYear, checkMonth, 1);
+              if (checkDate > now) {
+                nextDueDate = checkDate;
+                foundNextQuarter = true;
+                break;
+              }
+            }
+            if (!foundNextQuarter) {
+              // All quarters this year have passed, use start quarter next year
+              nextDueDate = new Date(currentYear + 1, startMonth, 1);
+            }
+            break;
+          case "Monthly":
+            // First day of next month
+            nextDueDate = new Date(currentYear, currentMonth + 1, 1);
+            break;
+          default:
+            return null;
+        }
+        
+        return nextDueDate.toISOString().split('T')[0];
+      };
+
+      const effectiveFrequency = frequency || null;
+      const effectiveStartQuarter = startQuarter || "Q1";
+      const nextDueDate = effectiveFrequency ? calculateNextDueDate(effectiveFrequency, effectiveStartQuarter) : null;
+
       // Check if organisation control exists, if not create it
       let orgControl = await storage.getOrganisationControl(controlId);
       if (!orgControl) {
         orgControl = await storage.createOrganisationControl({
           controlId,
           isApplicable: isApplicable ?? true,
-          frequency: frequency || null,
+          frequency: effectiveFrequency,
           startQuarter: startQuarter || null,
           exclusionJustification: exclusionJustification || null,
+          nextDueDate,
         });
       } else {
         orgControl = await storage.updateOrganisationControl(controlId, {
           isApplicable: isApplicable ?? orgControl.isApplicable,
-          frequency: frequency || orgControl.frequency,
+          frequency: effectiveFrequency || orgControl.frequency,
           exclusionJustification: exclusionJustification ?? orgControl.exclusionJustification,
           startQuarter: startQuarter || orgControl.startQuarter,
+          nextDueDate,
         });
       }
 

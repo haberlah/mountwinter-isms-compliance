@@ -185,13 +185,17 @@ export default function ControlDetail() {
 
           <Tabs defaultValue="questionnaire" className="w-full">
             <TabsList className="w-full justify-start">
-              <TabsTrigger value="questionnaire" className="gap-2">
+              <TabsTrigger value="questionnaire" className="gap-2" data-testid="tab-questionnaire">
                 <Brain className="h-4 w-4" />
                 AI Questionnaire
               </TabsTrigger>
-              <TabsTrigger value="history" className="gap-2">
+              <TabsTrigger value="history" className="gap-2" data-testid="tab-history">
                 <History className="h-4 w-4" />
                 Test History
+              </TabsTrigger>
+              <TabsTrigger value="implementation" className="gap-2" data-testid="tab-implementation">
+                <FileText className="h-4 w-4" />
+                Implementation
               </TabsTrigger>
             </TabsList>
 
@@ -271,7 +275,9 @@ export default function ControlDetail() {
                 <CardContent>
                   {control.recentTestRuns && control.recentTestRuns.length > 0 ? (
                     <div className="space-y-3">
-                      {control.recentTestRuns.map((run) => (
+                      {[...control.recentTestRuns]
+                        .sort((a, b) => new Date(b.testDate).getTime() - new Date(a.testDate).getTime())
+                        .map((run) => (
                         <div
                           key={run.id}
                           className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
@@ -308,6 +314,64 @@ export default function ControlDetail() {
                       <p className="text-lg font-medium mb-2">No test history</p>
                       <p className="text-sm text-muted-foreground">
                         This control has not been tested yet
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="implementation" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Implementation Responses</CardTitle>
+                  <CardDescription>
+                    Saved responses to the assessment questionnaire
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {orgControl?.implementationResponses && Object.keys(orgControl.implementationResponses).length > 0 ? (
+                    <div className="space-y-4">
+                      {control.aiQuestionnaire?.questions?.map((q, index) => {
+                        const response = orgControl.implementationResponses?.[q.id];
+                        return (
+                          <div
+                            key={q.id}
+                            className="p-4 rounded-lg border bg-muted/30"
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-medium shrink-0">
+                                {index + 1}
+                              </span>
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{q.question}</p>
+                                <div className="mt-2 p-3 bg-background rounded border">
+                                  <p className="text-sm text-muted-foreground">
+                                    {response !== undefined 
+                                      ? (typeof response === 'boolean' 
+                                        ? (response ? 'Yes' : 'No') 
+                                        : String(response))
+                                      : <span className="italic">No response recorded</span>
+                                    }
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {orgControl.implementationUpdatedAt && (
+                        <p className="text-xs text-muted-foreground">
+                          Last updated: {format(new Date(orgControl.implementationUpdatedAt), "MMM d, yyyy h:mm a")}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <p className="text-lg font-medium mb-2">No implementation responses</p>
+                      <p className="text-sm text-muted-foreground">
+                        Responses will be saved when you complete a test assessment
                       </p>
                     </div>
                   )}
@@ -559,6 +623,7 @@ function ControlSettingsCard({
   const { toast } = useToast();
   const [isApplicable, setIsApplicable] = useState(orgControl?.isApplicable ?? true);
   const [frequency, setFrequency] = useState<string>(orgControl?.frequency || control.defaultFrequency || "Annual");
+  const [startQuarter, setStartQuarter] = useState<string>(orgControl?.startQuarter || control.startQuarter || "Q1");
   const [justification, setJustification] = useState(orgControl?.exclusionJustification || "");
 
   const updateSettingsMutation = useMutation({
@@ -566,6 +631,7 @@ function ControlSettingsCard({
       return apiRequest("PATCH", `/api/organisation-controls/${control.id}`, {
         isApplicable,
         frequency,
+        startQuarter,
         exclusionJustification: !isApplicable ? justification : null,
       });
     },
@@ -574,7 +640,7 @@ function ControlSettingsCard({
       queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
       toast({
         title: "Settings Updated",
-        description: "Control settings have been saved.",
+        description: "Control settings have been saved. Due date has been calculated.",
       });
     },
     onError: () => {
@@ -630,9 +696,24 @@ function ControlSettingsCard({
           </Select>
         </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="start-quarter" className="text-sm">Start Quarter</Label>
+          <Select value={startQuarter} onValueChange={setStartQuarter}>
+            <SelectTrigger data-testid="select-start-quarter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Q1">Q1 (January)</SelectItem>
+              <SelectItem value="Q2">Q2 (April)</SelectItem>
+              <SelectItem value="Q3">Q3 (July)</SelectItem>
+              <SelectItem value="Q4">Q4 (October)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <Button 
           onClick={() => updateSettingsMutation.mutate()}
-          disabled={updateSettingsMutation.isPending}
+          disabled={updateSettingsMutation.isPending || (!isApplicable && !justification.trim())}
           className="w-full"
           data-testid="button-save-settings"
         >
@@ -641,6 +722,12 @@ function ControlSettingsCard({
           )}
           Save Changes
         </Button>
+
+        {!isApplicable && !justification.trim() && (
+          <p className="text-xs text-destructive">
+            Exclusion justification is required for inapplicable controls
+          </p>
+        )}
       </CardContent>
     </Card>
   );
