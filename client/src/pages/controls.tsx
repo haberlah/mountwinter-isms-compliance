@@ -250,7 +250,8 @@ export default function Controls() {
           </Select>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -399,6 +400,7 @@ export default function Controls() {
               )}
             </TableBody>
           </Table>
+          </div>
         </Card>
 
         {!isLoading && filteredAndSortedControls.length > 0 && (

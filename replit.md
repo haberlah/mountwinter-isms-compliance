@@ -2,6 +2,19 @@
 
 ## Recent Changes (January 2026)
 
+### Prompt 9 - Settings Page & Final Polish (V1 Complete)
+- Settings page at /settings with 4 sections:
+  - API Configuration: Displays API key status, model name, Test Connection button
+  - Control Defaults: Shows default frequency (Annual) and start quarter (Q1)
+  - Data Management: Export Test History as CSV with proper escaping
+  - Statistics Summary: Total Controls, Categories, Tested, Passed, Failed
+- API endpoints: GET /api/settings, POST /api/settings/test-api, GET /api/export/test-history
+- 404 page with styled error message and "Go to Dashboard" button
+- Mobile responsiveness: Horizontal scroll on tables, collapsible sidebar, stacked forms
+- Toast notifications throughout app for user actions
+- Loading states and error handling on all pages
+- MWC logo in sidebar, renamed to "ISMS Compliance Tracker"
+
 ### Prompt 8 - Compliance Dashboard (Completed)
 - Summary stats cards: Total Controls (100), Passed, Failed, Not Tested with icons
 - Compliance Status radial chart: Shows compliance % with color coding (green >80%, amber 50-80%, red <50%)

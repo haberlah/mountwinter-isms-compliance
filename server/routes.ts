@@ -5,6 +5,7 @@ import { seedDatabase } from "./seed";
 import { generateQuestionnaire, analyzeTestResponse, DEFAULT_MODEL, AIConfigurationError, checkAIConfiguration, streamAnalysis, type OntologyQuestion as AIQuestion, type QuestionResponse as AIQuestionResponse, type TestRunHistory } from "./ai";
 import { insertTestRunSchema, type Persona, type ImplementationResponses, type QuestionResponse } from "@shared/schema";
 import { z } from "zod";
+import Anthropic from "@anthropic-ai/sdk";
 
 const personaSchema = z.enum(["Auditor", "Advisor", "Analyst"]);
 
@@ -608,6 +609,121 @@ export async function registerRoutes(
       } else {
         res.status(500).json({ error: "Failed to analyze control" });
       }
+    }
+  });
+
+  // Settings
+  app.get("/api/settings", async (req, res) => {
+    try {
+      const aiConfig = checkAIConfiguration();
+      const categories = await storage.getCategories();
+      const stats = await storage.getDashboardStats();
+      
+      res.json({
+        ai: {
+          configured: aiConfig.configured,
+          message: aiConfig.message,
+          model: DEFAULT_MODEL,
+        },
+        defaults: {
+          frequency: "Annual",
+          startQuarter: "Q1",
+        },
+        statistics: {
+          totalControls: stats.totalControls,
+          totalCategories: categories.length,
+          testedControls: stats.testedControls,
+          passedControls: stats.passedControls,
+          failedControls: stats.failedControls,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  // Test API connection
+  app.post("/api/settings/test-api", async (req, res) => {
+    try {
+      const aiConfig = checkAIConfiguration();
+      if (!aiConfig.configured) {
+        res.json({ 
+          success: false, 
+          message: aiConfig.message,
+        });
+        return;
+      }
+
+      // Try a simple API call to verify the key works
+      const anthropic = new Anthropic();
+      await anthropic.messages.create({
+        model: DEFAULT_MODEL,
+        max_tokens: 10,
+        messages: [{ role: "user", content: "Hello" }],
+      });
+      
+      res.json({ 
+        success: true, 
+        message: "API connection successful",
+        model: DEFAULT_MODEL,
+      });
+    } catch (error: any) {
+      console.error("API test failed:", error);
+      res.json({ 
+        success: false, 
+        message: error.message || "API connection failed",
+      });
+    }
+  });
+
+  // Export test history as CSV
+  app.get("/api/export/test-history", async (req, res) => {
+    try {
+      const testRuns = await storage.getTestRuns();
+      
+      // CSV header
+      const csvHeader = "Test Date,Control Number,Control Name,Status,Tester,Comments,AI Suggested Status,AI Confidence\n";
+      
+      // Helper to escape CSV values (wrap in quotes and escape internal quotes)
+      const escapeCSV = (value: string): string => {
+        if (value.includes('"') || value.includes(',') || value.includes('\n')) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      };
+      
+      // CSV rows
+      const csvRows = testRuns.map(run => {
+        const testDate = new Date(run.testDate).toISOString();
+        const controlNumber = run.organisationControl?.control?.controlNumber || "";
+        const controlName = run.organisationControl?.control?.name || "";
+        const status = run.status;
+        const tester = run.tester?.name || "";
+        const comments = run.comments || "";
+        const aiSuggestedStatus = run.aiSuggestedStatus || "";
+        const aiConfidence = run.aiConfidence ? `${(run.aiConfidence * 100).toFixed(0)}%` : "";
+        
+        return [
+          testDate,
+          controlNumber,
+          escapeCSV(controlName),
+          status,
+          escapeCSV(tester),
+          escapeCSV(comments),
+          aiSuggestedStatus,
+          aiConfidence
+        ].join(',');
+      }).join("\n");
+      
+      const csv = csvHeader + csvRows;
+      
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=test-history.csv");
+      res.send(csv);
+    } catch (error) {
+      console.error("Error exporting test history:", error);
+      res.status(500).json({ error: "Failed to export test history" });
     }
   });
 
