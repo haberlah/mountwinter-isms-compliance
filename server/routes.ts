@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { seedDatabase } from "./seed";
-import { generateQuestionnaire, analyzeTestResponse, DEFAULT_MODEL, AIConfigurationError, checkAIConfiguration } from "./ai";
+import { generateQuestionnaire, analyzeTestResponse, DEFAULT_MODEL, AIConfigurationError, checkAIConfiguration, streamAnalysis, type OntologyQuestion as AIQuestion, type QuestionResponse as AIQuestionResponse, type TestRunHistory } from "./ai";
 import { insertTestRunSchema, type Persona, type ImplementationResponses, type QuestionResponse } from "@shared/schema";
 import { z } from "zod";
 
@@ -131,53 +131,6 @@ export async function registerRoutes(
         });
       }
       res.status(500).json({ error: "Failed to generate questionnaire" });
-    }
-  });
-
-  // Analyze test response
-  app.post("/api/controls/:controlNumber/analyze", async (req, res) => {
-    try {
-      const control = await storage.getControlByNumber(req.params.controlNumber);
-      if (!control) {
-        return res.status(404).json({ error: "Control not found" });
-      }
-
-      const { comments } = req.body;
-      if (!comments || typeof comments !== "string") {
-        return res.status(400).json({ error: "Comments are required" });
-      }
-
-      const user = await storage.getOrCreateDefaultUser();
-
-      const { analysis, tokensUsed } = await analyzeTestResponse(
-        control.controlNumber,
-        control.name,
-        control.description || "",
-        comments,
-        control.aiQuestionnaire || undefined
-      );
-
-      // Log AI interaction
-      await storage.createAiInteraction({
-        userId: user.id,
-        interactionType: "test_analysis",
-        controlId: control.id,
-        inputSummary: comments.substring(0, 200) + (comments.length > 200 ? "..." : ""),
-        outputSummary: `Suggested: ${analysis.suggestedStatus} (${(analysis.confidence * 100).toFixed(0)}% confidence)`,
-        modelUsed: DEFAULT_MODEL,
-        tokensUsed,
-      });
-
-      res.json(analysis);
-    } catch (error) {
-      console.error("Error analyzing response:", error);
-      if (error instanceof AIConfigurationError) {
-        return res.status(502).json({ 
-          error: "AI service configuration error", 
-          message: error.message 
-        });
-      }
-      res.status(500).json({ error: "Failed to analyze response" });
     }
   });
 
@@ -520,6 +473,130 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error adding evidence:", error);
       res.status(500).json({ error: "Failed to add evidence" });
+    }
+  });
+
+  // Persona-aware AI analysis with streaming (SSE)
+  const analyzeRequestSchema = z.object({
+    persona: personaSchema,
+    include_history: z.boolean().default(true),
+    comments: z.string().default(""),
+  });
+
+  app.post("/api/controls/:controlNumber/analyze", async (req, res) => {
+    try {
+      // Validate request body
+      const parseResult = analyzeRequestSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.errors });
+      }
+
+      const { persona, include_history, comments } = parseResult.data;
+
+      // Get control data
+      const control = await storage.getControlByNumber(req.params.controlNumber);
+      if (!control) {
+        return res.status(404).json({ error: "Control not found" });
+      }
+
+      // Check for questionnaire
+      const questionnaire = control.aiQuestionnaire;
+      if (!questionnaire || !questionnaire.questions || questionnaire.questions.length === 0) {
+        return res.status(400).json({ error: "No questionnaire available for this control" });
+      }
+
+      // Get implementation responses
+      const orgControl = control.organisationControl;
+      if (!orgControl) {
+        return res.status(400).json({ error: "Organisation control not configured" });
+      }
+
+      const implementationResponses = orgControl.implementationResponses as ImplementationResponses | null;
+      const responses: AIQuestionResponse[] = (implementationResponses?.responses || []).map(r => ({
+        question_id: r.question_id,
+        response_text: r.response_text,
+        evidence_references: r.evidence_references,
+      }));
+
+      // Check if there are any responses
+      const hasResponses = responses.some(r => r.response_text?.trim());
+      if (!hasResponses && !comments.trim()) {
+        return res.status(400).json({ error: "No responses or comments provided for analysis" });
+      }
+
+      // Get test history if requested
+      let previousTests: TestRunHistory[] = [];
+      if (include_history && control.recentTestRuns) {
+        previousTests = control.recentTestRuns.slice(0, 3).map(t => ({
+          testDate: new Date(t.testDate).toLocaleDateString(),
+          status: t.status,
+          comments: t.comments,
+        }));
+      }
+
+      // Convert ontology questions to the AI format
+      const aiQuestions: AIQuestion[] = questionnaire.questions.map(q => ({
+        question_id: q.question_id,
+        question: q.question,
+        guidance: q.guidance || "",
+        auditor_focus: q.auditor_focus || "",
+        evidence_type: q.evidence_type || "",
+        what_good_looks_like: q.what_good_looks_like || "",
+        red_flags: q.red_flags || "",
+        nc_pattern: q.nc_pattern || "",
+        related_controls: q.related_controls || "",
+      }));
+
+      // Set up Server-Sent Events
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+
+      // Stream the analysis
+      const { analysis, tokensUsed, fullText } = await streamAnalysis(
+        persona,
+        control.controlNumber,
+        control.name,
+        aiQuestions,
+        responses,
+        comments,
+        previousTests,
+        (text) => {
+          res.write(`event: token\ndata: ${JSON.stringify({ text })}\n\n`);
+        }
+      );
+
+      // Log AI interaction
+      const user = await storage.getOrCreateDefaultUser();
+      await storage.createAiInteraction({
+        userId: user.id,
+        interactionType: "test_analysis",
+        controlId: control.id,
+        inputSummary: `${persona} analysis for ${control.controlNumber}`,
+        outputSummary: `Status: ${analysis.suggested_status}, Confidence: ${Math.round(analysis.confidence * 100)}%`,
+        modelUsed: DEFAULT_MODEL,
+        tokensUsed,
+      });
+
+      // Send complete event with parsed analysis
+      res.write(`event: complete\ndata: ${JSON.stringify(analysis)}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error("Error analyzing control:", error);
+      
+      if (error instanceof AIConfigurationError) {
+        res.status(502).json({ error: error.message });
+        return;
+      }
+      
+      // If we've already started streaming, we need to send error as an event
+      if (res.headersSent) {
+        res.write(`event: error\ndata: ${JSON.stringify({ error: "Analysis failed" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: "Failed to analyze control" });
+      }
     }
   });
 
