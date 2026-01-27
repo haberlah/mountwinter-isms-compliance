@@ -1,5 +1,29 @@
 # ISMS Compliance Tracker
 
+## Recent Changes (January 2026)
+
+### Prompt 3 - Controls List (Completed)
+- Added controls list page with sortable table (Control #, Name, Category, Status, Frequency)
+- Summary stats cards showing Total, Passed, Failed, Not Tested counts
+- Search functionality for filtering by control number, name, or category
+- Dropdown filters for category and status
+- Click-through navigation to control detail page
+- New API endpoints: GET /api/controls/stats, enhanced GET /api/controls with latest test data
+- New storage methods: getControlsWithLatestTest(), getControlsStats()
+- New types: ControlsStats, ControlWithLatestTest
+
+### Prompt 2 - Layout & Navigation (Completed)
+- Linear-style responsive sidebar layout
+- Zinc palette with blue-600 primary accent
+- Navigation: Dashboard, Controls, Settings
+- MWC - ISMS Compliance Tracker branding
+- useCurrentUser hook and permission utilities
+
+### Prompt 1 - Database & Seed Data (Completed)
+- 90 organization-specific controls seeded from controls.json
+- 5 control categories with APRA prudential standard references (CPS234, CPS230)
+- AI questionnaire generation verified working
+
 ## Overview
 
 This is an ISO 27001:2022 Information Security Management System (ISMS) compliance tracking application. It helps organizations manage and assess security controls through AI-powered questionnaire generation and compliance analysis. The system tracks 90 ISO 27001 controls across 5 categories, supports test run tracking, and integrates with Claude AI for generating assessment questionnaires and analyzing compliance responses.
