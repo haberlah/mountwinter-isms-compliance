@@ -2,12 +2,17 @@
 
 ## Recent Changes (January 2026)
 
+### UX Refinements (Completed)
+- PersonaSelector consolidated: 4 buttons (Auditor, Advisor, Analyst, All) replacing separate ViewModeToggle
+- "All" mode groups questions by persona with section headings; specific persona filters to that persona only
+- Control table rows fully clickable: onClick, Enter/Space keyboard support, tabIndex, role="link"
+- Removed nested Link components from table cells for cleaner interaction model
+
 ### Prompt 6 - Persona-Aware Questionnaire Display (Completed)
-- PersonaSelector component: 3 persona buttons (Auditor, Advisor, Analyst) with question counts and selection state
+- PersonaSelector component: 4 persona buttons (Auditor, Advisor, Analyst, All) with question counts and selection state
 - SeverityBadge component: Critical (red), High (orange), Medium (yellow), Low (green) color variants
 - QuestionCard component: Collapsible sections for guidance, auditor_focus, what_good_looks_like, red_flags, nc_pattern, related_controls
 - ProgressSection component: Shows questionnaire completion by persona (e.g., "Auditor: 2/5")
-- ViewModeToggle component: Switch between "By Persona" (filtered) and "All Questions" (grouped)
 - Auto-save with 2-second debounce using useDebouncedCallback hook
 - Save status indicators: Saving..., Saved (green), Error, Unsaved states
 - Evidence references: Add/display as tags in QuestionCard
