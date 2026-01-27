@@ -2,6 +2,27 @@
 
 ## Recent Changes (January 2026)
 
+### Prompt 10 - Organization Profile & Control Applicability (Completed)
+- Organization Profile form in Settings with fields:
+  - Company Name, Industry, Company Size, Deployment Model
+  - Tech Stack (textarea), Regulatory Requirements (multi-select badges)
+  - Data Classification Levels (multi-select badges), Risk Appetite (radio selection)
+  - Additional Context for AI (textarea)
+- Bulk Control Applicability section in Settings:
+  - Table with all 100 controls and toggle switches for applicability
+  - Category filter dropdown, Select All / Deselect All buttons
+  - Unsaved changes highlighted with amber background
+  - Save Changes button saves both applicability and hide preference
+- hideNonApplicableControls preference filters Controls list
+- AI analysis now includes organization context in system prompts for personalized guidance
+- Compact page headers with inline subtitles (e.g., "Controls | Manage and track...")
+- Questionnaire Progress display updated: "Controls: X complete • Y partial • Z not started" first, then "Question coverage: X / 503 answered" in muted text
+- API endpoints:
+  - GET/PUT /api/settings/profile for organization profile
+  - GET/PATCH /api/controls/applicability for bulk applicability updates
+- Route ordering fix: /api/controls/applicability defined before /api/controls/:controlNumber
+- Database: organisation_profile table with all organization fields
+
 ### Prompt 9 - Settings Page & Final Polish (V1 Complete)
 - Settings page at /settings with 4 sections:
   - API Configuration: Displays API key status, model name, Test Connection button
