@@ -31,11 +31,11 @@ function getStatusInfo(status: string | null | undefined) {
     case "Pass":
     case "PassPrevious":
     case "ContinualImprovement":
-      return { label: "Passed", variant: "default" as const, icon: CheckCircle, className: "bg-green-600 hover:bg-green-700" };
+      return { label: "Passed", variant: "default" as const, icon: CheckCircle, className: "bg-green-600 dark:bg-green-700" };
     case "Fail":
       return { label: "Failed", variant: "destructive" as const, icon: XCircle, className: "" };
     case "Blocked":
-      return { label: "Blocked", variant: "secondary" as const, icon: AlertCircle, className: "bg-amber-500 hover:bg-amber-600 text-white" };
+      return { label: "Blocked", variant: "secondary" as const, icon: AlertCircle, className: "bg-amber-500 dark:bg-amber-600 text-white" };
     case "NotAttempted":
     default:
       return { label: "Not Tested", variant: "outline" as const, icon: Clock, className: "" };
