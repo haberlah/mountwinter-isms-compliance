@@ -8,8 +8,57 @@ export const userRoleEnum = pgEnum("user_role", ["admin", "compliance_officer", 
 export const frequencyEnum = pgEnum("frequency", ["Annual", "Quarterly", "Monthly"]);
 export const quarterEnum = pgEnum("quarter", ["Q1", "Q2", "Q3", "Q4"]);
 export const testStatusEnum = pgEnum("test_status", ["Pass", "PassPrevious", "Fail", "Blocked", "NotAttempted", "ContinualImprovement"]);
-export const interactionTypeEnum = pgEnum("interaction_type", ["questionnaire_generation", "response_review", "test_analysis"]);
+export const interactionTypeEnum = pgEnum("interaction_type", ["questionnaire_generation", "response_review", "test_analysis", "ontology_load"]);
 export const aiContextScopeEnum = pgEnum("ai_context_scope", ["current_only", "last_3", "all_history"]);
+export const personaEnum = pgEnum("persona", ["Auditor", "Advisor", "Analyst"]);
+
+// Persona types
+export const personaValues = ['Auditor', 'Advisor', 'Analyst'] as const;
+export type Persona = typeof personaValues[number];
+export type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
+
+// Ontology question structure
+export interface OntologyQuestion {
+  question_id: number;
+  question: string;
+  guidance: string;
+  auditor_focus: string;
+  evidence_type: string;
+  answer_type: string;
+  what_good_looks_like: string;
+  red_flags: string;
+  nc_pattern: string;
+  severity: Severity;
+  primary_persona: Persona;
+  related_controls: string;
+  cps234_ref?: string;
+  cps230_ref?: string;
+}
+
+export interface ControlQuestionnaire {
+  questions: OntologyQuestion[];
+  metadata: {
+    total_questions: number;
+    by_persona: Record<Persona, number>;
+  };
+}
+
+export interface QuestionResponse {
+  question_id: number;
+  response_text: string;
+  evidence_references: string[];
+  last_updated: string;
+  answered_by_user_id: number;
+}
+
+export interface ImplementationResponses {
+  responses: QuestionResponse[];
+  completion_status: {
+    total: number;
+    answered: number;
+    by_persona: Record<Persona, { total: number; answered: number }>;
+  };
+}
 
 // Users table
 export const users = pgTable("users", {
@@ -40,14 +89,7 @@ export const controls = pgTable("controls", {
   cps234Reference: text("cps234_reference"),
   cps230Reference: text("cps230_reference"),
   annexAReference: text("annex_a_reference"),
-  aiQuestionnaire: jsonb("ai_questionnaire").$type<{
-    questions: Array<{
-      id: string;
-      question: string;
-      type: "text" | "boolean" | "scale";
-      guidance?: string;
-    }>;
-  }>(),
+  aiQuestionnaire: jsonb("ai_questionnaire").$type<ControlQuestionnaire>(),
   questionnaireGeneratedAt: timestamp("questionnaire_generated_at"),
 });
 
@@ -61,7 +103,8 @@ export const organisationControls = pgTable("organisation_controls", {
   isApplicable: boolean("is_applicable").notNull().default(true),
   exclusionJustification: text("exclusion_justification"),
   nextDueDate: date("next_due_date"),
-  implementationResponses: jsonb("implementation_responses").$type<Record<string, string | boolean | number>>(),
+  selectedPersona: varchar("selected_persona", { length: 20 }).default("Auditor"),
+  implementationResponses: jsonb("implementation_responses").$type<ImplementationResponses>(),
   implementationUpdatedAt: timestamp("implementation_updated_at"),
 });
 
