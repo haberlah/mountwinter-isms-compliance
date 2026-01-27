@@ -46,10 +46,7 @@ export function AppSidebar() {
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Shield className="h-5 w-5" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-tight">MWC - ISMS Compliance</span>
-            <span className="text-xs text-muted-foreground">Tracker</span>
-          </div>
+          <span className="text-sm font-semibold tracking-tight">MWC - ISMS Compliance Tracker</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
