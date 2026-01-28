@@ -114,7 +114,7 @@
 - useCurrentUser hook and permission utilities
 
 ### Prompt 1 - Database & Seed Data (Completed)
-- 90 organization-specific controls seeded from controls.json
+- 100 controls loaded from iso_27001_ontology.json
 - 5 control categories with APRA prudential standard references (CPS234, CPS230)
 - AI questionnaire generation verified working
 

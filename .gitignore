@@ -1,6 +1,46 @@
-node_modules
-dist
-.DS_Store
-server/public
-vite.config.ts.*
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+server/public/
 *.tar.gz
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Vite
+vite.config.ts.*
+
+# Test coverage
+coverage/
+
+# Replit development artifacts (keep .replit and replit.md for Replit compatibility)
+attached_assets/
+
+# Local development
+*.local
