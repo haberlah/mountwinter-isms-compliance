@@ -260,7 +260,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createControl(control: InsertControl): Promise<Control> {
-    const [c] = await db.insert(controls).values(control).returning();
+    const [c] = await db.insert(controls).values(control as any).returning();
     return c;
   }
 
@@ -286,7 +286,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrganisationControl(orgControl: InsertOrganisationControl): Promise<OrganisationControl> {
-    const [oc] = await db.insert(organisationControls).values(orgControl).returning();
+    const [oc] = await db.insert(organisationControls).values(orgControl as any).returning();
     return oc;
   }
 
@@ -570,7 +570,7 @@ export class DatabaseStorage implements IStorage {
         .set({
           ...profile,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(organisationProfile.id, existing.id))
         .returning();
       return updated;
@@ -580,7 +580,7 @@ export class DatabaseStorage implements IStorage {
         .values({
           organisationId: 1,
           ...profile,
-        })
+        } as any)
         .returning();
       return created;
     }
