@@ -1,0 +1,683 @@
+# ISMS Questionnaire Table Builder — Master Prompt V2
+
+**Purpose:** Systematically build the complete questionnaire table for the MWC ISMS Compliance Tracker application. Process one section at a time, appending results to the master CSV.
+
+---
+
+## Context
+
+You are building a questionnaire database for an ISO 27001:2022 compliance tracking application. The application:
+
+- Tracks 90 security controls across 5 categories
+- Uses AI to assist compliance officers with audit preparation
+- Users select their persona role in the app UI (Auditor, Advisor, Analyst)
+- The `primary_persona` field indicates which persona benefits most from each question
+- Stores questionnaires in a PostgreSQL database via Drizzle ORM
+- Provides immutable audit trail for test results
+
+**Source Document:** ISO_27001_2022_Audit_Questionnaires_V2_Complete.md
+
+**Transform Rules:**
+- Remove any company-specific references (e.g. Hannover Office, HLRA, Hlr Aus, CSSA)
+- Generalize to any organisation pursuing ISO 27001:2022 certification
+- Assign personas per the guidelines below (not keyword-based detection)
+- Add severity and answer_type classifications
+- Map related controls for audit dependency tracking
+- Maintain regulatory references (CPS 234, CPS 230) as optional metadata
+
+---
+
+## Schema Definition
+
+**Delimiter:** `|` (pipe character)
+
+**Columns (in order):**
+
+| # | Column | Type | Description |
+|---|--------|------|-------------|
+| 1 | control_number | VARCHAR(20) | Control identifier (e.g., "RQ4", "5.1", "8.24") |
+| 2 | control_name | VARCHAR(200) | Standardized control name from ISO 27001:2022 |
+| 3 | category | VARCHAR(50) | One of 5 categories (see taxonomy below) |
+| 4 | question_id | INTEGER | Sequential within control (1, 2, 3...) |
+| 5 | question | TEXT | The audit question in imperative or interrogative form |
+| 6 | guidance | TEXT | Structured guidance for evaluating responses |
+| 7 | auditor_focus | TEXT | Single key probe point or critical check |
+| 8 | evidence_type | VARCHAR(500) | Evidence taxonomy tags (see below) |
+| 9 | answer_type | VARCHAR(50) | How evidence is obtained (see taxonomy) |
+| 10 | what_good_looks_like | TEXT | SMART criteria describing ideal state |
+| 11 | red_flags | TEXT | Warning signs indicating problems |
+| 12 | nc_pattern | TEXT | Nonconformity pattern specific to this question |
+| 13 | severity | VARCHAR(20) | Question criticality (Critical/High/Medium) |
+| 14 | primary_persona | VARCHAR(20) | Optimal user persona (Auditor/Advisor/Analyst) |
+| 15 | related_controls | VARCHAR(200) | **NEW:** Comma-separated control numbers this question depends on or relates to |
+| 16 | cps234_ref | VARCHAR(50) | CPS 234 paragraph references (nullable) |
+| 17 | cps230_ref | VARCHAR(50) | CPS 230 paragraph references (nullable) |
+
+---
+
+## Taxonomy Definitions
+
+### Categories (5 total)
+
+| Category | Controls |
+|----------|----------|
+| ISMS Requirements | RQ4, RQ5, RQ6, RQ7, RQ8, RQ9, RQ10 |
+| Organisational Controls | 5.1 through 5.37 |
+| People Controls | 6.1 through 6.8 |
+| Physical Controls | 7.1 through 7.14 (may be grouped) |
+| Technological Controls | 8.1 through 8.34 |
+
+### Evidence Types (use 2-4 tags per question, semicolon-separated)
+
+| Tag | Description | Examples |
+|-----|-------------|----------|
+| POLICY | Formal policy documents | Information Security Policy, Access Control Policy |
+| PROCEDURE | Operational procedures | Incident Response Procedure, Change Management Procedure |
+| REGISTER | Inventories and registers | Risk Register, Asset Register, Stakeholder Register |
+| RECORD | Transactional records | Training Records, Access Logs, Meeting Minutes |
+| REPORT | Assessment outputs | Audit Reports, Pen Test Reports, Management Reviews |
+| CONFIG | System configurations | Firewall Rules, IAM Policies, SIEM Dashboards |
+| CONTRACT | Agreements | Supplier Contracts, NDAs, SLAs |
+| MATRIX | Mapping documents | RACI Matrix, Shared Responsibility Matrix, Coverage Matrix |
+
+### Answer Types (select one)
+
+| Type | Description | When to Use |
+|------|-------------|-------------|
+| Document | Review of written artifacts | Policies, procedures, registers, reports |
+| Demonstration | Live walkthrough | System configurations, process execution |
+| Interview | Verbal inquiry | Understanding, awareness, decision rationale |
+| Observation | Physical or logical inspection | Physical security, screen checks, environment |
+
+### Severity Levels
+
+| Level | Criteria | Examples |
+|-------|----------|----------|
+| Critical | Fundamental ISMS requirements; certification blockers | SoA completeness, risk assessment methodology, management review |
+| High | Core security controls; common audit findings | Access control, logging, incident response |
+| Medium | Supporting controls; lower compliance risk | Training records, document control |
+
+---
+
+## Persona Assignment Guidelines
+
+Users select their persona in the app UI. The `primary_persona` field indicates which persona benefits most from each question's framing and evidence focus. This is metadata for AI response tailoring, not runtime persona detection.
+
+### Auditor Persona
+**Focus:** Evidence verification, compliance checking, documentary proof
+
+**Assign when the question:**
+- Requests specific evidence or artifacts
+- Verifies existence of mandatory documentation
+- Checks compliance with requirements
+- Requires proof of implementation
+- Uses imperatives like "Provide...", "Show me...", "Present..."
+
+**Response style:** Formal, evidence-focused, checklist-oriented
+
+---
+
+### Advisor Persona
+**Focus:** Process implementation, best practice guidance, improvement recommendations
+
+**Assign when the question:**
+- Explores how processes work
+- Seeks understanding of approach
+- Addresses process design or improvement
+- Requires explanation of methodology
+- Uses interrogatives like "How is...", "How are...", "Describe..."
+
+**Response style:** Consultative, explanatory, improvement-focused
+
+---
+
+### Analyst Persona
+**Focus:** Data analysis, metrics evaluation, quantitative assessment
+
+**Assign when the question:**
+- Requests metrics or KPIs
+- Asks for rates, percentages, counts
+- Requires trend analysis
+- Involves data-driven decision making
+- Uses terms like "rate", "percentage", "metrics", "trend"
+
+**Response style:** Data-driven, quantitative, analytical
+
+---
+
+### Quick Assignment Reference
+
+| Question Type | Persona |
+|---------------|---------|
+| Evidence request (Provide, Show, Present) | Auditor |
+| Process inquiry (How is, Describe, Explain) | Advisor |
+| Metrics/KPIs (Rate, Percentage, Trend) | Analyst |
+| Ambiguous/Default | Auditor |
+
+---
+
+## Control Dependencies Reference
+
+### Why Dependencies Matter
+
+Auditors verify the "Golden Thread" connecting risks → controls → evidence. Many controls have prerequisites or produce outputs consumed by other controls. The `related_controls` column captures these relationships for:
+
+1. **Audit trail completeness** - Ensuring prerequisite evidence exists
+2. **Gap identification** - Highlighting missing upstream controls
+3. **Evidence reuse** - Identifying when one artifact satisfies multiple controls
+4. **Audit sequencing** - Suggesting optimal audit order
+
+### Dependency Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| PREREQ | This control requires evidence from another control first | 5.16 (Identity Management) requires 5.15 (Access Control Policy) |
+| FEEDS | This control produces evidence used by another control | 8.15 (Logging) feeds 8.16 (Monitoring) |
+| RELATED | Controls that should be assessed together | 5.24-5.28 (Incident Management lifecycle) |
+| POLICY | Requires a policy control to be in place | Most controls relate to 5.1 (Policies) |
+
+### Master Dependency Map
+
+**ISMS Requirements (Clauses 4-10):**
+
+| Control | Related Controls | Relationship |
+|---------|------------------|--------------|
+| RQ4 (Context/Scope) | RQ6 | Scope defines risk assessment boundary |
+| RQ5 (Leadership) | 5.1, 5.2, 5.4 | Policy ownership, roles |
+| RQ6 (Planning) | RQ4, all Annex A | Risk → SoA → Controls |
+| RQ7 (Support) | 6.3, 5.1 | Training, documentation |
+| RQ8 (Operation) | RQ6, 8.1-8.34 | Risk treatment execution |
+| RQ9 (Performance) | RQ6, RQ10, 5.35 | Audit feeds improvement |
+| RQ10 (Improvement) | RQ9, 5.27 | Learning from incidents/audits |
+
+**Organisational Controls (5.x):**
+
+| Control | Related Controls | Relationship |
+|---------|------------------|--------------|
+| 5.1 (Policies) | ALL | Foundation for all controls |
+| 5.2 (Roles) | 5.3, 5.4 | Enables segregation, management |
+| 5.3 (Segregation) | 5.2, 5.15 | Requires defined roles and access policy |
+| 5.9 (Asset Inventory) | 5.10, 5.11, 5.12, 5.13 | Foundation for asset management chain |
+| 5.10 (Acceptable Use) | 5.9, 5.1 | Requires inventory and policy |
+| 5.11 (Return of Assets) | 5.9, 6.5 | Requires inventory; links to termination |
+| 5.12 (Classification) | 5.9, 5.13 | Requires inventory; feeds labeling |
+| 5.13 (Labeling) | 5.12 | Requires classification |
+| 5.14 (Information Transfer) | 5.12, 8.24 | Classification informs transfer rules; encryption |
+| 5.15 (Access Control Policy) | 5.1, 5.16, 5.17, 5.18 | Foundation for access chain |
+| 5.16 (Identity Management) | 5.15 | Requires access policy |
+| 5.17 (Authentication) | 5.15, 5.16 | Requires policy and identity |
+| 5.18 (Access Rights) | 5.15, 5.16, 5.17 | Requires full access chain |
+| 5.19 (Supplier Policy) | 5.1, 5.20-5.22 | Foundation for supplier chain |
+| 5.20 (Supplier Agreements) | 5.19 | Requires supplier policy |
+| 5.21 (ICT Supply Chain) | 5.19, 5.20 | Requires policy and agreements |
+| 5.22 (Supplier Monitoring) | 5.19, 5.20, 5.21 | Requires full supplier chain |
+| 5.23 (Cloud Services) | 5.19, 5.22, 8.24 | Supplier management; encryption |
+| 5.24 (Incident Planning) | 5.1, 5.25-5.28 | Policy foundation; lifecycle start |
+| 5.25 (Incident Assessment) | 5.24 | Requires planning |
+| 5.26 (Incident Response) | 5.24, 5.25 | Requires planning and assessment |
+| 5.27 (Incident Learning) | 5.24, 5.25, 5.26, RQ10 | Feeds improvement cycle |
+| 5.28 (Evidence Collection) | 5.24, 5.26, 8.15 | Requires incident process; uses logs |
+| 5.29 (Continuity) | 5.30, RQ6 | Risk-based; links to ICT continuity |
+| 5.30 (ICT Continuity) | 5.29, 8.13, 8.14 | Links to backups, redundancy |
+| 5.31 (Legal Requirements) | 5.1, 5.34 | Policy context; feeds compliance |
+| 5.34 (Privacy) | 5.31, 5.12 | Legal context; classification |
+| 5.35 (Independent Review) | RQ9, 5.36 | Feeds audit program |
+| 5.36 (Compliance Review) | 5.35, 5.31 | Part of review program; legal context |
+| 5.37 (Operating Procedures) | 5.1, 8.1-8.34 | Documents tech controls |
+
+**People Controls (6.x):**
+
+| Control | Related Controls | Relationship |
+|---------|------------------|--------------|
+| 6.1 (Screening) | 6.2 | Precedes employment |
+| 6.2 (Terms & Conditions) | 6.1, 5.1 | Follows screening; policy context |
+| 6.3 (Awareness Training) | 6.2, 5.1 | Follows onboarding; policy content |
+| 6.4 (Disciplinary Process) | 6.2, 5.1 | Defined in terms; policy context |
+| 6.5 (Termination) | 6.2, 5.11, 5.18 | Terms define; asset return; access revocation |
+| 6.6 (Confidentiality) | 6.2, 5.14 | Part of terms; transfer context |
+| 6.7 (Remote Working) | 5.15, 8.1, 8.20 | Access policy; endpoint security; network |
+| 6.8 (Event Reporting) | 5.24, 6.3 | Feeds incident process; trained in awareness |
+
+**Physical Controls (7.x):**
+
+| Control | Related Controls | Relationship |
+|---------|------------------|--------------|
+| 7.1 (Physical Perimeters) | 7.2, 7.3, 7.4 | Foundation for physical chain |
+| 7.2 (Physical Entry) | 7.1, 5.15 | Requires perimeter; access policy |
+| 7.3 (Offices/Facilities) | 7.1, 7.2 | Within perimeter/entry |
+| 7.4 (Physical Monitoring) | 7.1, 7.2, 8.16 | Perimeter/entry; feeds monitoring |
+| 7.5 (Environmental Threats) | 7.1, 5.29 | Physical context; continuity |
+| 7.6 (Secure Areas) | 7.1, 7.2, 7.3 | Within physical framework |
+| 7.7 (Clear Desk) | 5.12, 6.3 | Classification awareness; training |
+| 7.8 (Equipment Siting) | 7.1, 7.5 | Physical/environmental |
+| 7.9 (Asset Security Offsite) | 5.9, 6.7 | Asset inventory; remote work |
+| 7.10 (Storage Media) | 5.9, 5.12, 8.10 | Inventory; classification; deletion |
+| 7.11 (Supporting Utilities) | 7.5, 5.30 | Environmental; continuity |
+| 7.12 (Cabling Security) | 7.1, 8.20 | Physical; network |
+| 7.13 (Equipment Maintenance) | 5.9, 5.21 | Inventory; supplier if outsourced |
+| 7.14 (Equipment Disposal) | 5.9, 8.10 | Inventory; secure deletion |
+
+**Technological Controls (8.x):**
+
+| Control | Related Controls | Relationship |
+|---------|------------------|--------------|
+| 8.1 (Endpoint Devices) | 5.15, 6.7, 8.7 | Access policy; remote work; malware |
+| 8.2 (Privileged Access) | 5.15, 5.18, 8.15 | Access policy; rights; logging |
+| 8.3 (Information Restriction) | 5.12, 5.15 | Classification; access policy |
+| 8.4 (Source Code Access) | 5.15, 8.25 | Access policy; secure dev |
+| 8.5 (Secure Authentication) | 5.17, 8.2 | Authentication; privileged access |
+| 8.6 (Capacity Management) | 5.9, 8.16 | Inventory; monitoring |
+| 8.7 (Malware Protection) | 8.1, 8.15, 8.16 | Endpoints; logging; monitoring |
+| 8.8 (Vulnerability Management) | 5.7, 8.7, 8.32 | Threat intel; malware; testing |
+| 8.9 (Configuration Management) | 5.37, 8.32, 8.33 | Procedures; testing; audit |
+| 8.10 (Information Deletion) | 5.12, 7.10, 7.14 | Classification; media; disposal |
+| 8.11 (Data Masking) | 5.12, 8.24 | Classification; encryption |
+| 8.12 (Data Leakage Prevention) | 5.12, 8.15, 8.16 | Classification; logging; monitoring |
+| 8.13 (Information Backup) | 5.30, 8.14 | ICT continuity; redundancy |
+| 8.14 (Redundancy) | 5.30, 8.13 | ICT continuity; backup |
+| 8.15 (Logging) | 5.28, 8.16, 8.17 | Evidence; monitoring; time sync |
+| 8.16 (Monitoring) | 8.15, 5.24, 8.7 | Logging; incidents; malware |
+| 8.17 (Clock Synchronization) | 8.15 | Logging integrity |
+| 8.18 (Privileged Utility Programs) | 8.2, 8.15 | Privileged access; logging |
+| 8.19 (Software Installation) | 8.9, 8.32 | Configuration; testing |
+| 8.20 (Network Security) | 5.15, 8.21, 8.22 | Access; segregation; filtering |
+| 8.21 (Network Segregation) | 8.20, 5.23 | Network; cloud |
+| 8.22 (Web Filtering) | 8.20, 8.7 | Network; malware |
+| 8.23 (Secure Network Services) | 8.20, 5.20 | Network; supplier agreements |
+| 8.24 (Cryptography) | 5.12, 5.14, 8.11 | Classification; transfer; masking |
+| 8.25 (Secure Development) | 8.26-8.31 | Foundation for dev lifecycle |
+| 8.26 (Application Requirements) | 8.25, RQ6 | Dev lifecycle; risk |
+| 8.27 (Secure Architecture) | 8.25, 8.26 | Dev lifecycle; requirements |
+| 8.28 (Secure Coding) | 8.25, 8.27 | Dev lifecycle; architecture |
+| 8.29 (Security Testing Dev) | 8.25, 8.32 | Dev lifecycle; testing |
+| 8.30 (Outsourced Development) | 8.25, 5.20 | Dev lifecycle; supplier |
+| 8.31 (Dev/Test Environments) | 8.25, 8.9 | Dev lifecycle; configuration |
+| 8.32 (Change Management) | 8.9, 8.29, 8.33 | Configuration; dev testing; audit logging |
+| 8.33 (Test Information) | 8.25, 5.12 | Dev lifecycle; classification |
+| 8.34 (Audit System Protection) | 8.15, RQ9, 5.35 | Logging; audit; review |
+
+---
+
+## Style Guide
+
+### Column 5: question
+
+**Format:** Imperative or interrogative sentence.
+
+**Rules:**
+- Start with action verb (Provide, Show, Describe, How) or question word
+- Be specific about what is being requested
+- Include scope qualifiers where needed
+- Always apply Australian spelling conventions!
+
+
+**Good:**
+```
+Provide your documented risk assessment methodology.
+How is privileged access provisioned and approved?
+What is your training completion rate?
+```
+
+**Bad:**
+```
+Risk assessment? (too vague)
+Tell me about your risk stuff (informal, imprecise)
+Can you show me the risk assessment methodology document that defines how you identify, analyze, and evaluate risks? (too long)
+```
+
+---
+
+### Column 6: guidance
+
+**Format:** Structured three-part guidance
+
+**Template:**
+```
+[Context/Scope]. Look for: [item 1]; [item 2]; [item 3]. [Verification instruction].
+```
+
+**Rules:**
+- Start with context establishing what area is being examined
+- "Look for:" followed by semicolon-separated specific items (3-6 items)
+- End with verification instruction or key question
+- 150-300 characters optimal
+
+**Good:**
+```
+Risk methodology documentation. Look for: defined impact scales (1-5 with criteria); likelihood scales; risk calculation method; board-approved acceptance criteria; reassessment triggers. Verify consistent application across departments.
+```
+
+**Bad:**
+```
+Check the risk stuff (too vague)
+Look for documentation (not specific enough)
+The risk assessment methodology should define impact and likelihood scales with clear criteria, a risk calculation method that combines these factors, board-approved risk acceptance criteria, a process for assigning risk owners, and triggers for reassessment. The methodology must be consistently applied across all departments and evidence should show regular reviews. (too long, not structured)
+```
+
+---
+
+### Column 7: auditor_focus
+
+**Format:** Single sentence or phrase identifying the critical check
+
+**Rules:**
+- One key question or verification point
+- Phrased as question the auditor asks themselves
+- Focus on the differentiator between pass and fail
+
+**Good:**
+```
+Is methodology documented AND consistently applied?
+Can you trace from risk to control selection?
+Did the CEO actually attend, or delegate?
+```
+
+**Bad:**
+```
+Check methodology (too vague)
+Is it OK? (meaningless)
+```
+
+---
+
+### Column 8: evidence_type
+
+**Format:** Semicolon-separated tags from taxonomy
+
+**Rules:**
+- Use 2-4 tags per question
+- Use exact taxonomy terms
+- Order by primary evidence type first
+- Semicolon with space separator
+
+**Good:**
+```
+POLICY; PROCEDURE; RECORD
+REGISTER; MATRIX
+CONFIG; REPORT
+```
+
+**Bad:**
+```
+documentation (not in taxonomy)
+Policy, Procedure (wrong separator)
+```
+
+---
+
+### Column 10: what_good_looks_like
+
+**Format:** Comma-separated SMART criteria
+
+**Rules:**
+- Specific observable outcomes
+- Measurable where possible (percentages, counts, timeframes)
+- 3-5 criteria typically
+- Describe the ideal state, not minimum acceptable
+
+**Good:**
+```
+All 93 controls listed with status, risk-based justification for each inclusion, specific justification for exclusions referencing scope or risk assessment, current implementation status, valid evidence references
+```
+
+**Bad:**
+```
+Good documentation (not specific)
+Follows best practice (not measurable)
+```
+
+---
+
+### Column 11: red_flags
+
+**Format:** Semicolon-separated warning signs
+
+**Rules:**
+- Observable/verifiable indicators
+- 3-5 items typically
+- Specific conditions, not generic concerns
+- Link to potential nonconformity
+
+**Good:**
+```
+Missing controls; Generic N/A without justification; No evidence references; Outdated implementation status; Exclusions not risk-assessed
+```
+
+**Bad:**
+```
+Bad stuff; Problems; Not good
+```
+
+---
+
+### Column 12: nc_pattern
+
+**Format:** Single sentence describing typical nonconformity finding
+
+**Rules:**
+- Specific to this question
+- Actionable (identifies what's wrong)
+- Written as auditor would document finding
+
+**Good:**
+```
+Statement of Applicability missing justification for excluded controls.
+Management review minutes do not address all mandatory ISO 27001 inputs.
+```
+
+**Bad:**
+```
+Bad risk management (too vague)
+Doesn't meet requirements (not specific)
+```
+
+---
+
+### Column 13: severity
+
+**Format:** Single value: Critical, High, or Medium
+
+**Assignment criteria:**
+
+| Severity | Assign when |
+|----------|-------------|
+| Critical | Clause 4-10 mandatory requirements; SoA; Risk assessment methodology; Management review; Internal audit coverage |
+| High | Core Annex A controls; Access control; Logging; Incident response; Encryption; Supplier security |
+| Medium | Supporting controls; Training; Documentation; Awareness; Physical security (if cloud-only) |
+
+---
+
+### Column 15: related_controls (NEW)
+
+**Format:** Comma-separated control numbers
+
+**Rules:**
+- Use control numbers only (e.g., "5.1, 5.15, 8.2")
+- Maximum 5-6 related controls (most significant only)
+- Order by dependency importance
+- Include PREREQ controls first, then FEEDS, then RELATED
+- Leave empty only if truly standalone (rare)
+
+**Good:**
+```
+5.1, 5.15, 8.2
+RQ6, 5.24, 8.15
+```
+
+**Determining Related Controls:**
+1. Does this control require a policy? → Add 5.1
+2. Does this control require access decisions? → Add 5.15 chain
+3. Does this control produce logs/evidence? → Add 8.15, 5.28
+4. Is this part of a process lifecycle? → Add adjacent controls
+5. Does this control require assets to be known? → Add 5.9
+
+---
+
+### Columns 16-17: cps234_ref, cps230_ref
+
+**Format:** Comma-separated paragraph numbers or empty
+
+**Rules:**
+- Use paragraph numbers only (e.g., "15, 17")
+- Leave empty if no mapping
+- Do not include "para" or "paragraph" text
+
+---
+
+## Output Format
+
+Generate output as pipe-delimited rows with NO header row (header provided separately).
+
+**Header (for reference only, do not include in output):**
+```
+control_number|control_name|category|question_id|question|guidance|auditor_focus|evidence_type|answer_type|what_good_looks_like|red_flags|nc_pattern|severity|primary_persona|related_controls|cps234_ref|cps230_ref
+```
+
+**Example row:**
+```
+RQ6|Planning including Control Test Planning|ISMS Requirements|4|Provide your Statement of Applicability addressing ALL 93 Annex A controls.|SoA completeness check. Look for: all 93 controls listed; applicability status per control; risk-based justification for inclusions; scope-based justification for exclusions; implementation status; evidence references; control owners. Verify no controls are missing.|Are ALL 93 controls addressed with specific justification?|REGISTER; MATRIX|Document|All 93 controls listed with status, risk-based justification for each inclusion, specific scope-based justification for exclusions (not generic N/A), current implementation status, valid evidence references, named owners|Missing controls; Generic N/A without justification; No evidence references; Outdated implementation status; Exclusions not risk-assessed|Statement of Applicability incomplete or missing justification for control exclusions.|Critical|Auditor|RQ4, 5.1, all Annex A|15, 18|
+```
+
+---
+
+## Processing Instructions
+
+### Step 1: Identify Section to Process
+
+Sections and their controls:
+
+| Section | Name | Controls |
+|---------|------|----------|
+| 1 | ISMS Requirements | RQ4, RQ5, RQ6, RQ7, RQ8, RQ9, RQ10 |
+| 2 | Organisational Controls | 5.1-5.37 |
+| 3 | People Controls | 6.1-6.8 |
+| 4 | Physical Controls | 7.1-7.14 |
+| 5 | Technological Controls | 8.1-8.34 |
+
+### Step 2: For Each Control
+
+1. Extract questions from source document
+2. Remove company-specific references (generalize)
+3. Apply formatting rules from style guide
+4. **Assign persona using guidelines** (not keyword detection)
+5. Assign severity using criteria
+6. Map evidence types to taxonomy
+7. Determine answer type
+8. Generate what_good_looks_like using SMART criteria
+9. Generate red_flags as observable warning signs
+10. Write question-specific nc_pattern
+11. **Map related controls using dependency reference**
+12. Preserve regulatory references
+
+### Step 3: Output
+
+Generate pipe-delimited rows, one per question, with no header.
+
+---
+
+## Section Processing Prompt Template
+
+Use this template when processing each section:
+
+```
+Process Section [X]: [Section Name]
+
+Using the ISMS Questionnaire Table Builder Master Prompt V2 and the source document ISO_27001_2022_Audit_Questionnaires_V2_Complete.md:
+
+1. Extract all questions for controls: [list controls]
+2. Apply all style guide rules and formatting standards
+3. Assign personas using the assignment guidelines
+4. Assign severity per criteria
+5. Map related controls using the dependency reference
+6. Remove company-specific references (Hannover Office, HLRA, Hlr Aus, CSSA)
+7. Generate pipe-delimited output (no header)
+
+Output the complete table rows for this section.
+```
+
+---
+
+## Complete Example: Control RQ6
+
+Below is a complete worked example showing all questions for one control with the new `related_controls` column:
+
+```
+RQ6|Planning including Control Test Planning|ISMS Requirements|1|Provide your documented risk assessment methodology.|Risk methodology documentation. Look for: defined impact scales (1-5 with criteria); likelihood scales; risk calculation method; board-approved acceptance criteria; risk owner assignment process; reassessment triggers. Verify consistent application.|Is methodology documented AND consistently applied?|PROCEDURE; MATRIX; RECORD|Document|Documented methodology with clear 5-point impact and likelihood scales, board-approved acceptance criteria dated within 12 months, consistent application evidence across all departments, defined reassessment triggers|No documented methodology; Inconsistent scoring across departments; No board-approved acceptance criteria; Methodology varies by business unit|Risk assessment methodology not documented or inconsistently applied across the organisation.|Critical|Auditor|RQ4, 5.1, RQ8|15, 18|
+RQ6|Planning including Control Test Planning|ISMS Requirements|2|Show me your current risk register.|Risk register review. Look for: asset-threat-vulnerability mapping; consistent scoring; named risk owners; treatment status; residual risk levels. Check for regular updates and active management.|Are risks scored consistently? Are owners actively managing?|REGISTER; RECORD|Document|Complete asset-threat-vulnerability mapping, consistent scoring methodology applied, named owners with evidence of active management, treatment status current, residual risk documented and accepted|Inconsistent scoring; No owners assigned; Stale entries over 12 months; Missing critical assets; No residual risk documentation|Risk register incomplete, inconsistently scored, or lacking active ownership.|High|Analyst|5.9, 5.7, RQ4|15, 18|
+RQ6|Planning including Control Test Planning|ISMS Requirements|3|Present your risk treatment plan with control selection rationale.|Risk treatment traceability. Look for: controls linked to specific risks; implementation timelines; responsible parties; progress tracking. Verify Golden Thread from risk to control.|Can you trace from identified risk to selected control?|REGISTER; MATRIX; RECORD|Document|Every control selection traced to specific risk, realistic timelines with progress tracking, named responsible parties, variances documented and escalated, clear linkage to SoA|Controls not linked to risks; Best practice justification only; No progress tracking; Timelines unrealistic; Disconnected from SoA|Risk treatment plan does not demonstrate traceability from identified risks to selected controls.|Critical|Advisor|5.1, RQ8, Annex A|15, 18|
+RQ6|Planning including Control Test Planning|ISMS Requirements|4|Provide your Statement of Applicability addressing ALL 93 Annex A controls.|SoA completeness check. Look for: all 93 controls listed; applicability status; risk-based justification for inclusions; scope-based justification for exclusions; implementation status; evidence references. Verify no gaps.|Are ALL 93 controls addressed with specific justification?|REGISTER; MATRIX|Document|All 93 controls listed with applicability status, risk-based justification for each inclusion, specific justification for exclusions referencing scope or risk assessment, current implementation status, valid evidence references|Missing controls; Generic N/A without justification; No evidence references; Outdated implementation status; Exclusions not assessed|Statement of Applicability incomplete or missing justification for control exclusions.|Critical|Auditor|RQ4, 5.1, all Annex A|15, 18|
+RQ6|Planning including Control Test Planning|ISMS Requirements|5|For each SoA exclusion, show me the documented justification.|Exclusion justification review. Look for: specific risk-based rationale; reference to scope boundaries; alternative controls where applicable; annual review evidence. Reject generic N/A statements.|Is each exclusion justified with specific, auditable rationale?|REGISTER; RECORD|Document|Specific justification per exclusion referencing scope or risk assessment, alternative controls documented where applicable, annual review of exclusions completed, no generic N/A entries|Generic N/A - not applicable entries; No risk assessment for exclusions; Alternative controls not considered; Exclusions never reviewed|Control exclusions lack specific, risk-based justification.|Critical|Auditor|RQ4, 5.31|15, 18|
+RQ6|Planning including Control Test Planning|ISMS Requirements|6|Provide your control testing schedule for the certification period.|Testing schedule review. Look for: all applicable controls scheduled; testing methods defined; sample sizes documented; responsible parties assigned; 3-year cycle coverage plan. Verify completeness.|Will all applicable controls be tested within the 3-year certification cycle?|REGISTER; MATRIX; RECORD|Document|All applicable controls scheduled with testing dates, methods defined per control, sample sizes justified, responsible parties assigned, complete 3-year coverage with no gaps|Incomplete coverage; No testing schedule; Some controls never tested; Missing 3-year plan; No sample size rationale|Control testing schedule incomplete or does not ensure full coverage within certification cycle.|High|Auditor|RQ9, 5.35, 5.36|15, 18|
+RQ6|Planning including Control Test Planning|ISMS Requirements|7|Show me signed residual risk acceptance records.|Risk acceptance verification. Look for: management signature; clear risk description; residual risk level quantified; acceptance authority appropriate to risk level. Verify understanding.|Does management understand and formally accept residual risk exposure?|RECORD; REPORT|Document|Management-signed acceptance forms with clear risk description, residual risk level quantified, acceptance authority appropriate to risk magnitude, dated within 12 months, evidence of informed decision|No formal acceptance; Acceptance without apparent understanding; Inappropriate authority level; Undated or stale acceptance|Residual risk not formally accepted by appropriate management authority.|Critical|Auditor|RQ5, 5.1|15, 18|
+RQ6|Planning including Control Test Planning|ISMS Requirements|8|Are information security objectives SMART and tracked?|Objectives assessment. Look for: Specific objectives; Measurable KPIs with targets; Achievable within resources; Relevant to business; Time-bound milestones. Verify current performance tracking.|Can you show current performance against defined objectives?|RECORD; REPORT|Document|SMART objectives documented with specific KPIs, targets defined with baseline, current performance tracked and reported, variance analysis performed, management review of progress|Vague objectives; No measurable KPIs; Targets without actuals; No tracking mechanism; Objectives ignored|Information security objectives not measurable or not actively tracked against targets.|High|Analyst|RQ5, RQ9|15, 18|
+```
+
+---
+
+## Validation Checklist
+
+Before submitting output, verify:
+
+- [ ] All questions from source document included
+- [ ] Company-specific references removed
+- [ ] Pipe delimiter used (no pipes within field content)
+- [ ] Each field follows style guide format
+- [ ] Persona assigned using guidelines (not keyword matching)
+- [ ] Severity assigned per criteria
+- [ ] Evidence types use taxonomy tags only
+- [ ] Answer type is single valid value
+- [ ] what_good_looks_like contains SMART criteria
+- [ ] red_flags are observable/verifiable
+- [ ] nc_pattern is question-specific
+- [ ] **related_controls populated using dependency reference**
+- [ ] Regulatory references preserved (or empty if none)
+- [ ] No header row included
+
+---
+
+## Notes for Multi-Session Processing
+
+When processing across multiple sessions:
+
+1. Start each session by referencing this master prompt
+2. Specify which section is being processed
+3. After generating, validate against checklist
+4. Append to master CSV file
+5. Track completed sections
+
+**Completion tracking:**
+
+| Section | Status | Row Count |
+|---------|--------|-----------|
+| 1 - ISMS Requirements | [ ] | ~44 |
+| 2 - Organisational Controls | [ ] | ~180 |
+| 3 - People Controls | [ ] | ~40 |
+| 4 - Physical Controls | [ ] | ~30 |
+| 5 - Technological Controls | [ ] | ~170 |
+| **Total** | | **~464** |
+
+---
+
+## Appendix: Frequently Asked Questions
+
+Users select their persona explicitly in the app UI. The keyword-based detection was a data generation heuristic, not a runtime feature. The simplified guidelines achieve the same outcome with less complexity.
+
+### How should the app use `primary_persona`?
+
+Options include:
+1. **Filter/prioritize:** Show questions most relevant to selected persona first
+2. **Response tailoring:** AI adjusts answer depth and focus based on persona context
+3. **Analytics:** Track which personas interact with which question types
+4. **Skip logic:** Suggest related questions based on persona workflow
+
+### Why add `related_controls`?
+
+Auditors verify the "Golden Thread" from risks to controls to evidence. Cross-control dependencies help:
+1. Identify missing prerequisite evidence
+2. Suggest audit sequencing
+3. Enable evidence reuse analysis
+4. Support gap identification
+
+### What if a question has no related controls?
+
+Very few questions are truly standalone. At minimum, most relate to 5.1 (Policies). If genuinely standalone, leave empty.

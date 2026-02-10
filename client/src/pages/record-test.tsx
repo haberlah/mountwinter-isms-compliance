@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, FileText, Loader2, AlertCircle, Sparkles, CheckCircle, XCircle, TrendingUp, AlertTriangle, BarChart3, Lightbulb, Target, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, AlertCircle, Sparkles, CheckCircle, XCircle, TrendingUp, AlertTriangle, BarChart3, Lightbulb, Target, ClipboardCheck, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -15,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAIAnalysis, type AnalysisResult } from "@/hooks/useAIAnalysis";
+import { EvidenceLinkManager } from "@/components/EvidenceLinkManager";
 import type { Persona, ImplementationResponses } from "@shared/schema";
 
 function renderTextValue(value: unknown): string {
@@ -150,10 +152,18 @@ function ConfidenceMeter({ value }: { value: number }) {
   );
 }
 
+interface CollectedEvidence {
+  title: string;
+  url?: string;
+  evidenceType?: string;
+  description?: string;
+}
+
 export default function RecordTest() {
   const { controlNumber } = useParams<{ controlNumber: string }>();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [collectedEvidence, setCollectedEvidence] = useState<CollectedEvidence[]>([]);
 
   const { data: control, isLoading, error } = useQuery<ControlWithDetails>({
     queryKey: ["/api/controls", controlNumber],
@@ -185,14 +195,15 @@ export default function RecordTest() {
   };
 
   const createTestRunMutation = useMutation({
-    mutationFn: async (data: { 
-      organisationControlId: number; 
-      status: string; 
+    mutationFn: async (data: {
+      organisationControlId: number;
+      status: string;
       comments: string | null;
       aiAnalysis?: string | null;
       aiSuggestedStatus?: string | null;
       aiConfidence?: number | null;
       aiContextScope?: string | null;
+      evidenceLinks?: CollectedEvidence[];
     }) => {
       const response = await apiRequest("POST", "/api/test-runs", data);
       return response.json();
@@ -234,6 +245,7 @@ export default function RecordTest() {
       aiSuggestedStatus: analysisResult?.suggested_status || null,
       aiConfidence: analysisResult?.confidence || null,
       aiContextScope: "last_3",
+      evidenceLinks: collectedEvidence.length > 0 ? collectedEvidence : undefined,
     });
   };
 
@@ -399,6 +411,22 @@ export default function RecordTest() {
                   </FormItem>
                 )}
               />
+
+              {/* Evidence Links */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Supporting Evidence</label>
+                <EvidenceLinkManager mode="collect" onCollectedChange={setCollectedEvidence} />
+              </div>
+
+              {/* Nudge for evidence on Pass/Fail */}
+              {form.watch("status") && ["Pass", "Fail", "PassPrevious"].includes(form.watch("status")) && collectedEvidence.length === 0 && (
+                <Alert variant="default" data-testid="alert-evidence-nudge">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    For audit trail completeness, consider linking supporting documents for this test result.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {/* AI Analysis Section */}
               <div className="border-t pt-6 space-y-4" data-testid="section-ai-analysis">

@@ -12,6 +12,7 @@ export const interactionTypeEnum = pgEnum("interaction_type", ["questionnaire_ge
 export const aiContextScopeEnum = pgEnum("ai_context_scope", ["current_only", "last_3", "all_history"]);
 export const personaEnum = pgEnum("persona", ["Auditor", "Advisor", "Analyst"]);
 export const riskAppetiteEnum = pgEnum("risk_appetite", ["Conservative", "Moderate", "Aggressive"]);
+export const evidenceTypeEnum = pgEnum("evidence_type", ["REGISTER", "RECORD", "POLICY", "MATRIX", "DOCUMENT", "OTHER"]);
 
 // Persona types
 export const personaValues = ['Auditor', 'Advisor', 'Analyst'] as const;
@@ -156,11 +157,26 @@ export const organisationProfile = pgTable("organisation_profile", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Evidence Links (structured evidence per question or test run)
+export const evidenceLinks = pgTable("evidence_links", {
+  id: serial("id").primaryKey(),
+  organisationControlId: integer("organisation_control_id").references(() => organisationControls.id),
+  questionId: integer("question_id"),
+  testRunId: integer("test_run_id").references(() => testRuns.id),
+  title: text("title").notNull(),
+  url: text("url"),
+  evidenceType: evidenceTypeEnum("evidence_type"),
+  description: text("description"),
+  addedByUserId: integer("added_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   organisationControls: many(organisationControls),
   testRuns: many(testRuns),
   aiInteractions: many(aiInteractions),
+  evidenceLinks: many(evidenceLinks),
 }));
 
 export const controlCategoriesRelations = relations(controlCategories, ({ many }) => ({
@@ -186,9 +202,10 @@ export const organisationControlsRelations = relations(organisationControls, ({ 
     references: [users.id],
   }),
   testRuns: many(testRuns),
+  evidenceLinks: many(evidenceLinks),
 }));
 
-export const testRunsRelations = relations(testRuns, ({ one }) => ({
+export const testRunsRelations = relations(testRuns, ({ one, many }) => ({
   organisationControl: one(organisationControls, {
     fields: [testRuns.organisationControlId],
     references: [organisationControls.id],
@@ -197,6 +214,7 @@ export const testRunsRelations = relations(testRuns, ({ one }) => ({
     fields: [testRuns.testerUserId],
     references: [users.id],
   }),
+  evidenceLinks: many(evidenceLinks),
 }));
 
 export const aiInteractionsRelations = relations(aiInteractions, ({ one }) => ({
@@ -214,6 +232,21 @@ export const aiInteractionsRelations = relations(aiInteractions, ({ one }) => ({
   }),
 }));
 
+export const evidenceLinksRelations = relations(evidenceLinks, ({ one }) => ({
+  organisationControl: one(organisationControls, {
+    fields: [evidenceLinks.organisationControlId],
+    references: [organisationControls.id],
+  }),
+  testRun: one(testRuns, {
+    fields: [evidenceLinks.testRunId],
+    references: [testRuns.id],
+  }),
+  addedBy: one(users, {
+    fields: [evidenceLinks.addedByUserId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertControlCategorySchema = createInsertSchema(controlCategories).omit({ id: true });
@@ -222,6 +255,7 @@ export const insertOrganisationControlSchema = createInsertSchema(organisationCo
 export const insertTestRunSchema = createInsertSchema(testRuns).omit({ id: true, testDate: true, createdAt: true });
 export const insertAiInteractionSchema = createInsertSchema(aiInteractions).omit({ id: true, createdAt: true });
 export const insertOrganisationProfileSchema = createInsertSchema(organisationProfile).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEvidenceLinkSchema = createInsertSchema(evidenceLinks).omit({ id: true, createdAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -245,6 +279,9 @@ export type InsertAiInteraction = z.infer<typeof insertAiInteractionSchema>;
 export type OrganisationProfile = typeof organisationProfile.$inferSelect;
 export type InsertOrganisationProfile = z.infer<typeof insertOrganisationProfileSchema>;
 export type RiskAppetite = 'Conservative' | 'Moderate' | 'Aggressive';
+
+export type EvidenceLink = typeof evidenceLinks.$inferSelect;
+export type InsertEvidenceLink = z.infer<typeof insertEvidenceLinkSchema>;
 
 export type ControlApplicability = {
   controlId: number;
@@ -331,4 +368,9 @@ export type ControlWithLatestTest = Control & {
   category: ControlCategory;
   organisationControl: OrganisationControl | null;
   latestTestRun: TestRun | null;
+  questionnaireProgress?: { total: number; answered: number; percentage: number };
+};
+
+export type TestRunWithEvidence = TestRun & {
+  evidenceLinks?: EvidenceLink[];
 };

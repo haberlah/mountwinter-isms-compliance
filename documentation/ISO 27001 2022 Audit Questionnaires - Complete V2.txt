@@ -1,0 +1,1506 @@
+# ISO 27001:2022 Audit Questionnaires - Complete V2
+
+**Version:** 2.0  
+**Last Updated:** 2026-01-27  
+**Status:** Complete  
+**Total Controls:** 90  
+**Framework:** ISO 27001:2022 with CPS 234/230 Integration
+
+---
+
+## Document Purpose
+
+This questionnaire set is designed for ISO 27001:2022 compliance auditing with specific focus on:
+
+1. **Evidence-first approach** - Questions phrased to elicit specific, auditable evidence
+2. **CPS 234/230 integration** - Australian regulatory context for APRA-regulated entities
+3. **SaaS/cloud-native focus** - AWS/Azure/GCP, CI/CD, multi-tenant considerations
+4. **Audit best practice alignment** - Stage 1/2 expectations, sampling, common nonconformities
+
+### Key Research Findings Applied
+
+| Area | Finding | Application |
+|------|---------|-------------|
+| Statement of Applicability | ALL 93 controls must be listed with justification | Enhanced RQ6 questions |
+| Risk Assessment | "Golden Thread" from risks â†’ controls â†’ evidence | Enhanced RQ6, RQ8 questions |
+| Cloud Security (5.23) | Shared responsibility model, exit strategy required | Detailed cloud questions |
+| Logging (8.15) | 12-month retention, log integrity protection | Enhanced evidence requirements |
+| Monitoring (8.16) | Real-time capability, anomaly detection | Expanded monitoring questions |
+| CPS 234 | 72-hour incident notification, control testing program | Integrated throughout |
+| Internal Audit (RQ9) | Coverage matrix, 3-year cycle, independence | Enhanced audit questions |
+
+---
+
+## SECTION 1: ISMS Requirements (Clauses 4-10)
+
+### Control RQ4: Context of the Organisation; Scope
+
+**CPS 234 Reference:** 15, 17
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide the documented internal and external issues affecting your ISMS.** | Look for: SWOT/PESTLE analysis, regulatory landscape (APRA, Privacy Act), competitive environment, technology changes, threat landscape. Document must be dated and show review within 12 months. | Is this organisation-specific or generic template? |
+| 2 | **Show me your interested parties register with their documented requirements.** | Must include: Customers, APRA, shareholders, employees, suppliers, partners. Each party should have specific security requirements documented (not generic "expects security"). | Are requirements traceable to controls? |
+| 3 | **Present your ISMS scope document.** | Scope must specify: Physical/logical boundaries, business units, locations, systems, data types, cloud infrastructure (AWS/Azure/GCP), CI/CD pipelines, customer data processing activities. Must state interfaces and dependencies. | Does scope cover all information assets? Are cloud services explicitly included? |
+| 4 | **What is explicitly excluded from scope, and what is the justification?** | Exclusions need documented risk-based justification. Red flag: Excluding critical systems without valid reasoning (e.g., "legacy system excluded" without compensating controls). | Is the exclusion justified by risk assessment? |
+| 5 | **Provide evidence of context review within the last 12 months.** | Management review minutes discussing context changes, updated context document with version history, change log showing updates. | Was review triggered by actual changes or just annual checkbox? |
+| 6 | **How does your scope address cloud infrastructure, CI/CD pipelines, and customer data flows?** | For SaaS: Explicit coverage of cloud provider configurations, deployment pipelines, API endpoints, data processing locations, multi-tenant architecture. | If cloud-based, scope should be detailed on shared responsibility. |
+
+**Common Nonconformities:**
+- Cookie-cutter context documents lacking organisation-specific detail
+- Scope excluding systems that process sensitive data
+- No evidence of annual review with management engagement
+
+---
+
+### Control RQ5: Leadership and Commitment
+
+**CPS 234 Reference:** 13, 14
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide meeting attendance records showing C-suite participation in ISMS governance.** | Look for: CEO/CFO/COO names on sign-in sheets, board meeting minutes discussing security, agenda items showing security as standing topic. Red flag: Delegation without attendance. | "Did the CEO actually attend, or did they delegate?" |
+| 2 | **Show me the current information security policy with executive approval signature.** | Policy must have: Executive signature (CEO/Board), approval date within 12 months, version control, organisation-specific content (not generic template). | Is the signature recent? Is policy organisation-specific? |
+| 3 | **Present your RACI matrix defining security roles, responsibilities, and authorities.** | RACI should include: Named individuals (not just roles), clear accountability for ISMS, control owners, incident response authorities. Must align with org chart. | Are responsibilities clear? No gaps or overlaps? |
+| 4 | **Provide evidence of security budget allocation and resource decisions.** | Budget documents, headcount approvals, tool procurement records, meeting minutes showing resource discussions and decisions. | Is security resourced adequately? |
+| 5 | **How does management demonstrate commitment to continual improvement?** | Management review outputs with improvement actions, security investment decisions, KPI reviews showing management response to metrics, improvement initiatives with executive sponsorship. | Are improvements driven by data or just compliance? |
+| 6 | **How are security objectives communicated organisation-wide?** | All-hands communications, intranet announcements, training materials, town hall presentations, security newsletter. Evidence of staff awareness. | Can random staff articulate security objectives? |
+
+**Common Nonconformities:**
+- Leadership involvement limited to policy signature only
+- No evidence of C-suite attending security governance meetings
+- RACI matrix exists but doesn't match actual decision-making
+
+---
+
+### Control RQ6: Planning *Incl Control Test Planning
+
+**CPS 234 Reference:** 15, 18
+
+**CRITICAL AREA - Most common audit failures occur here**
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your documented risk assessment methodology.** | Methodology must define: Impact scales (1-5 with criteria), likelihood scales, risk calculation method, risk acceptance criteria (board-approved), risk owner assignment process, reassessment triggers. Must show consistent application. | Is methodology documented AND consistently applied? |
+| 2 | **Show me your current risk register.** | Risk register with: Asset-threat-vulnerability mapping, consistent scoring across all risks, named risk owners, treatment status, residual risk levels. Evidence of regular updates. | Are risks scored consistently? Are owners actively managing? |
+| 3 | **Present your risk treatment plan with control selection rationale.** | Treatment plan showing: Control selection justified by risk (not just "best practice"), implementation timelines, responsible parties, progress tracking. Links to Statement of Applicability. | "Golden Thread" - can you trace from risk to control? |
+| 4 | **Provide your Statement of Applicability (SoA) addressing ALL 93 Annex A controls.** | SoA MUST include for EVERY control: Applicability status, justification (risk-based for inclusions, scope-based for exclusions), implementation status, evidence reference, control owner. Skipping controls = nonconformity. | Are ALL 93 controls addressed with justification? Any "N/A - not relevant" without explanation? |
+| 5 | **For each SoA exclusion, show me the documented justification.** | Exclusion justification must be specific: "N/A - fully cloud-based, no physical data centres; physical security assured via AWS SOC 2 (reviewed annually)" NOT "N/A - not applicable". | Is justification risk-based and auditable? |
+| 6 | **Provide your control testing schedule for the audit period.** | Annual testing calendar showing: Which controls tested when, testing method (automated/manual), sample sizes, responsible parties. All applicable controls must be covered within certification cycle (3 years). | Will all controls be tested within cycle? |
+| 7 | **Show me signed residual risk acceptance records.** | Board/management signed acceptance of residual risk after treatment, demonstrating understanding of remaining exposure. Must include risk description, residual level, and acceptance authority. | Does management understand what they're accepting? |
+| 8 | **Are information security objectives SMART and tracked?** | Objectives must be: Specific, Measurable, Achievable, Relevant, Time-bound. With KPIs and current performance data (not just targets). | Can you show me current performance against objectives? |
+
+**Common Nonconformities (Most cited area):**
+- Risk assessment methodology not consistently applied across departments
+- SoA missing controls or using "N/A" without justification
+- No evidence of risk reassessment after significant changes
+- Residual risk not formally accepted by management
+- Control testing schedule incomplete or missing
+
+---
+
+### Control RQ7: Support
+
+**CPS 234 Reference:** 15, 17
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide evidence of adequate ISMS resourcing.** | Budget allocation documents, headcount records, tool investments, training budget. Comparison of requested vs approved resources. | Is security adequately resourced? |
+| 2 | **Show me your competence framework for security roles.** | Role-based competency requirements documented, skills matrices, certification requirements (e.g., CISSP, ISO 27001 Lead Implementer), job descriptions with security responsibilities. | Are competency requirements clear and verified? |
+| 3 | **Provide security awareness training records with completion rates.** | Training completion tracking (target 95%+), content topics, delivery dates, assessment results, follow-up for non-completion. Include phishing simulation results. | What is completion rate? How are non-completers followed up? |
+| 4 | **Present your internal and external communication plan for the ISMS.** | Communication plan defining: What to communicate, to whom, when, how. Including incident notification procedures (APRA 72-hour requirement). | Are communication channels clear for incidents? |
+| 5 | **How is documented information controlled?** | Document control procedure, version history, access controls on sensitive documents, retention schedules, review schedule, approval workflows. | Is there a single source of truth? Are outdated versions controlled? |
+| 6 | **How is competence verified for new hires and role changes?** | Pre-employment verification, onboarding security training completion, probation assessments, role transition procedures with security consideration. | Evidence for recent new hires? |
+
+**Common Nonconformities:**
+- Training completion below 95% with no follow-up action
+- Document versions not controlled (multiple versions in circulation)
+- No competence verification for security-sensitive roles
+
+---
+
+### Control RQ8: Operation
+
+**CPS 234 Reference:** 15, 18
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide evidence that operational security processes are implemented.** | Documented procedures for: Change management, incident response, access management, backup/recovery. Evidence of execution (logs, tickets, approvals). | Procedures exist AND are followed? |
+| 2 | **Show me evidence of risk assessment at planned intervals.** | Risk assessment schedule (minimum annual), completed assessments with dates, documented results feeding into treatment plan updates. | When was last assessment? Is it current? |
+| 3 | **Provide evidence that risk treatment is implemented according to plan.** | Treatment plan progress tracking, control implementation evidence, timeline adherence documentation, variance explanations. | Are controls being implemented on schedule? |
+| 4 | **How are outsourced processes controlled?** | Supplier agreements with security requirements, monitoring of third-party compliance, audit rights documentation, security questionnaires (SIG/CAIQ). Link to CPS 234 para 21. | For material suppliers, is there ongoing monitoring? |
+| 5 | **Show me how security changes are managed.** | Change management records, security impact assessments for changes, approval workflows, back-out procedures. | Are security implications assessed before changes? |
+| 6 | **Provide evidence of risk reassessment triggered by significant changes.** | Evidence of reassessment after: New systems/applications, organisational changes, regulatory updates, security incidents. Trigger criteria documented. | What triggers reassessment? Show me a recent example. |
+
+**Common Nonconformities:**
+- Risk treatment plan exists but implementation delayed without escalation
+- Changes made without security impact assessment
+- No evidence of reassessment after significant changes
+
+---
+
+### Control RQ9: Performance Evaluation - Internal Audit
+
+**CPS 234 Reference:** 32, 33, 34a
+
+**CRITICAL AREA - Second most common audit failure**
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your internal audit schedule and completed audit reports.** | Audit schedule covering all ISMS requirements, completed reports for each audit, findings documented with severity. Schedule must be planned (not ad-hoc). | Are audits conducted as planned? |
+| 2 | **Show me your audit coverage matrix demonstrating ALL ISMS requirements are audited within the certification cycle.** | Matrix showing: Each clause and control, audit date, next audit date, coverage across 3-year cycle. No gaps allowed. | Will 100% coverage be achieved in 3 years? |
+| 3 | **Provide evidence that auditors are independent from areas they audit.** | Auditor assignments showing no self-audit, auditor competency records (ISO 27001 Lead Auditor training), independence declarations. | Did the IT manager audit IT controls? (Not allowed) |
+| 4 | **Present minutes from your last three Management Review meetings.** | Minutes must explicitly cover ALL mandatory inputs: Audit findings, nonconformity status, monitoring results, risk assessment status, changes affecting ISMS, opportunities for improvement. | Are all mandatory inputs explicitly addressed? |
+| 5 | **Show me your information security KPIs and performance metrics.** | Metrics tracked: Incident counts, MTTR, vulnerability remediation times, training completion, control effectiveness, access review completion. With targets and actuals. | Are metrics meaningful? What do they tell you? |
+| 6 | **Provide evidence that monitoring results are analysed and evaluated.** | Trend analysis reports, management presentations showing insights, action items from metric reviews, improvement initiatives triggered by data. | What changed as a result of the analysis? |
+| 7 | **For CPS 234: Show me evidence of internal audit reviewing design AND operating effectiveness of controls.** | Audit reports explicitly assessing both design adequacy and operational effectiveness. Not just "control exists" but "control works as intended". | CPS 234 para 32 requires both. |
+
+**Common Nonconformities (Second most cited):**
+- Internal audits not conducted at planned intervals
+- Audit coverage incomplete - some clauses/controls never audited
+- Management review minutes don't explicitly cover all mandatory inputs
+- Auditors not independent (IT staff auditing IT controls)
+- Metrics collected but not analysed or acted upon
+
+---
+
+### Control RQ10: Improvement (Continual Improvement)
+
+**CPS 234 Reference:** 26
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your nonconformity register.** | NCR register with: All identified nonconformities, classification (major/minor), root cause analysis, corrective actions, closure status, effectiveness verification. | Are all NCs tracked to closure? |
+| 2 | **Show me root cause analysis documentation for recent nonconformities.** | 5 Whys or Fishbone diagrams documented. Clear distinction between correction (symptom fix) and corrective action (root cause elimination). | Is the ROOT cause identified, or just the symptom? |
+| 3 | **Provide evidence of corrective action effectiveness verification.** | Verification records showing: Action taken, verification method, evidence that recurrence prevented, verification date and by whom. | How do you know the action worked? |
+| 4 | **What ISMS improvements have been made in the past 12 months?** | Documented enhancements: New controls, process improvements, tool implementations, control strengthening. With business case and outcomes. | Is improvement genuine or just documentation updates? |
+| 5 | **How are improvement opportunities identified?** | Sources documented: Audit findings, incident lessons learned, risk assessment updates, management reviews, industry developments, threat intelligence. | Is improvement proactive or only reactive? |
+| 6 | **Provide evidence of lessons learned from incidents being applied.** | Post-incident review reports, control improvements implemented, training updates, procedure changes. Traceable from incident to improvement. | Can you trace a specific incident to a specific improvement? |
+
+**Common Nonconformities:**
+- Corrective actions address symptoms not root causes
+- No evidence of effectiveness verification
+- Improvements claimed but no documented evidence
+
+---
+
+## SECTION 2: Organisational Controls (A.5.1 - A.5.37)
+
+### Control 5.1a: Policies for Information Security - Hlr Aus
+
+**CPS 234 Reference:** 18  
+**CPS 230 Reference:** 11a, 12, 44, 46, 47
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide the documented information security policy with executive approval.** | Policy with: CEO/Board signature, approval date within 12 months, version control, organisation-specific content aligned with CPS 234 requirements. | Is policy current and approved at appropriate level? |
+| 2 | **Present your topic-specific policies for key security areas.** | Required policies: Access control, encryption/cryptography, acceptable use, incident response, data classification, remote work, supplier security, cloud security. | Coverage of all key areas? Are they consistent with main policy? |
+| 3 | **Provide distribution and acknowledgment records for all relevant personnel.** | Distribution records, acknowledgment signatures (electronic accepted), intranet/policy portal access logs. Target: 100% acknowledgment for applicable staff. | What is acknowledgment rate? How are non-acknowledgers followed up? |
+| 4 | **Show me evidence that policies are reviewed at planned intervals.** | Review schedule (minimum annual), review meeting minutes, version history showing updates, change log with rationale. | When was last review? What changed? |
+| 5 | **How do policies address CPS 234 requirements?** | Policy coverage of: Information security capability (para 15), policy framework (para 18), information assets (para 20), third parties (para 21), incident management (para 23-25). | Can you map policy content to CPS 234 paragraphs? |
+| 6 | **How are policy exceptions handled?** | Exception request process, approval authority, compensating controls documentation, time-limited exceptions with review dates. | Are exceptions controlled or is policy bypassed? |
+
+---
+
+### Control 5.1: Policies for Information Security - Hannover Office including CSSA
+
+**CPS 234 Reference:** 13  
+**CPS 230 Reference:** 11a, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide the information security policy applicable to Hannover Office operations.** | Policy document covering Hannover Office, approved by appropriate management, consistent with corporate policy. | Is local policy aligned with corporate? |
+| 2 | **How are topic-specific policies aligned between Head Office and Hannover?** | Alignment mapping, consistent requirements, no conflicting obligations. If different, documented justification. | Any inconsistencies between locations? |
+| 3 | **Provide communication and acknowledgment records for Hannover personnel and CSSA.** | Distribution records, acknowledgment signatures, training attendance for all Hannover staff and CSSA contractors. | Are ALL relevant parties covered? |
+| 4 | **Show me evidence of policy updates following significant changes.** | Policy updates triggered by: Regulatory changes, organisational restructures, security incidents, technology changes. Change log with rationale. | Is policy responsive to changes? |
+| 5 | **How are policy exceptions at Hannover handled and approved?** | Local exception process, escalation to corporate where required, compensating controls, time limits. | Local autonomy within corporate framework? |
+
+---
+
+### Control 5.2: Information Security Roles and Responsibilities
+
+**CPS 234 Reference:** 14  
+**CPS 230 Reference:** 11a, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your RACI matrix or equivalent defining all security roles.** | RACI with: Named individuals (not just titles), all security functions covered, alignment with org chart. No orphan responsibilities. | Are all responsibilities assigned? Any gaps? |
+| 2 | **Show me the CISO/ISO job description and reporting line.** | JD with security responsibilities, reporting line to executive level, authority documented, independence from operations. | Does security have adequate authority? |
+| 3 | **Provide the asset owner register showing security responsibilities.** | Asset register with: Owner for each asset, documented owner responsibilities for security decisions, sign-off records. | Do owners understand their responsibilities? |
+| 4 | **How are security responsibilities verified during staff interviews?** | Sample interview questions used, expected answers, actual responses from recent interviews. | Do staff know their responsibilities? |
+| 5 | **How are responsibilities communicated during onboarding?** | Induction program security content, role-specific training, responsibility acknowledgment sign-off. | Evidence for recent new starter? |
+| 6 | **How are responsibilities updated when roles change?** | Role change procedures, access review triggers, responsibility reassignment, documentation updates. | Show me a recent role change example. |
+
+---
+
+### Control 5.3: Segregation of Duties
+
+**CPS 234 Reference:** 15, 19  
+**CPS 230 Reference:** 11a, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your segregation of duties matrix showing incompatible roles.** | Matrix showing: Incompatible combinations (requestor/approver, developer/deployer, admin/auditor), system enforced where possible. | Are conflicts identified comprehensively? |
+| 2 | **Show me how segregation is enforced in your CI/CD pipeline.** | Evidence that: Developers cannot deploy to production, four-eyes principle on deployments, approval gates enforced. | Can a single person make production changes? |
+| 3 | **How is segregation maintained for financial/payment systems?** | Payment approval limits, dual authorization requirements, system controls preventing self-approval, audit trails. | What are the approval thresholds? |
+| 4 | **Provide evidence of periodic review of access combinations for conflicts.** | Quarterly/annual access review reports, conflict detection results, remediation of identified conflicts. | Are reviews actually detecting conflicts? |
+| 5 | **How are exceptions to segregation handled?** | Exception approval process, compensating controls documented, time-limited access with review, monitoring of exceptions. | Are exceptions controlled or permanent workarounds? |
+
+---
+
+### Control 5.4: Management Responsibilities
+
+**CPS 234 Reference:** 14, 19  
+**CPS 230 Reference:** 11a, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How does management require personnel to apply security policies?** | Policy acknowledgment requirements, performance expectations, employment contract clauses, consequences for non-compliance documented. | Are expectations enforceable? |
+| 2 | **How is compliance with security policies monitored?** | Compliance monitoring mechanisms, automated checks where possible, manual reviews, non-compliance reporting. | Evidence of monitoring occurring? |
+| 3 | **Is security included in performance evaluations?** | Performance criteria including security compliance, training completion, incident involvement. | Show me a (anonymised) example. |
+| 4 | **How are contractors required to follow security policies?** | Contract clauses, policy acknowledgment for non-employees, compliance monitoring, access restrictions. | Are contractors treated equivalently? |
+| 5 | **Provide evidence of management communications about security.** | Management communications, all-hands mentions, newsletters, security awareness campaigns. | Is security visibly supported by management? |
+
+---
+
+### Control 5.5: Contact with Authorities, incl. APRA Notification
+
+**CPS 234 Reference:** 35  
+**CPS 230 Reference:** 15d
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your authority contact register.** | Contact list including: APRA, ACSC, AFP, OAIC, state police. With contact details, circumstances for contact, responsible contact person(s). | Is list complete and current? |
+| 2 | **Show me your APRA notification procedures for material security incidents.** | CPS 234 notification procedures: 72-hour timeline for material incidents, escalation matrix, notification template, decision criteria for materiality. | Can you meet 72-hour requirement? |
+| 3 | **Provide your CPS 234 para 36 material weakness notification procedures.** | 10 business day notification for material control weaknesses that won't be remediated timely. Escalation criteria, notification content. | Are weakness notification triggers clear? |
+| 4 | **How are legal/regulatory changes monitored and assessed?** | Regulatory monitoring process, legal updates tracking, impact assessment procedure, implementation timeline tracking. | How do you stay current with regulatory changes? |
+| 5 | **Provide evidence of authority relationship maintenance.** | Meeting records with regulators, correspondence, participation in regulatory consultations, industry forum participation. | Is relationship proactive or reactive? |
+
+---
+
+### Control 5.6: Contact with Special Interest Groups
+
+**CPS 234 Reference:** 17  
+**CPS 230 Reference:** 15a
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide a list of security forums and professional associations you engage with.** | Memberships: ISACA, ISC2, AISA, ACS, vendor-specific groups, threat intelligence sharing communities (ISACs), CERT contacts. | Active membership or just passive subscription? |
+| 2 | **How are personnel supported to participate in security communities?** | Membership sponsorship, conference attendance, time allocation for professional development, training budgets. | Is participation encouraged and resourced? |
+| 3 | **How is external threat intelligence received and processed?** | Intelligence feeds subscriptions, CERT advisories monitoring, vendor security bulletins, ACSC alerts. Processing workflow documented. | What sources? How quickly processed? |
+| 4 | **Show me how intelligence from external sources has been acted upon.** | Recent examples: Advisory received â†’ assessment conducted â†’ action taken (or determined not applicable). With timeline. | Is intelligence actionable or just filed? |
+| 5 | **Do you share lessons learned with the security community?** | Conference presentations, industry working groups, anonymised incident sharing, blog posts, whitepapers. | Contributing or just consuming? |
+
+---
+
+### Control 5.7: Threat Intelligence
+
+**CPS 234 Reference:** 17  
+**CPS 230 Reference:** 15a
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Describe your threat intelligence collection process.** | Documented program: Sources, collection methods, analysis process, dissemination procedures, responsibilities. | Structured program or ad-hoc? |
+| 2 | **What threat intelligence sources do you utilise?** | Sources: Commercial feeds (CrowdStrike, Recorded Future), open source (MITRE ATT&CK, NIST NVD), government (ACSC), ISACs, vendor bulletins. | Appropriate sources for your risk profile? |
+| 3 | **How is threat intelligence analysed and prioritised?** | Analysis methodology, relevance assessment criteria (industry, technology, geography), prioritisation based on risk profile. | Is analysis documented or just forwarding alerts? |
+| 4 | **Show me how threat intelligence feeds into risk assessment.** | Evidence of threat updates informing risk register, emerging threats added, risk scoring adjusted based on intelligence. | Is there integration or are they separate processes? |
+| 5 | **How is actionable intelligence communicated?** | Distribution process, urgency levels (critical/high/medium), response coordination, notification channels, tracking to resolution. | Can you show a recent actionable alert and response? |
+
+---
+
+### Control 5.8: Information Security in Project Management
+
+**CPS 234 Reference:** 18  
+**CPS 230 Reference:** 15a, 15c
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your project management methodology showing security integration.** | Project lifecycle with security gates, templates including security sections, mandatory security checkpoints at initiation/design/go-live. | Is security embedded or an afterthought? |
+| 2 | **Show me security requirements templates used in project initiation.** | Security requirements checklist, risk assessment template, early engagement trigger with security team. | Are requirements captured early? |
+| 3 | **How is threat modeling performed for new projects?** | Threat modeling methodology (STRIDE, PASTA, etc.), completed examples, timing in project lifecycle. | When is threat modeling done? By whom? |
+| 4 | **Provide evidence of security architecture review for recent projects.** | Architecture review records, security sign-off, issues identified and tracked, remediation before go-live. | Show me a recent project's security review. |
+| 5 | **How are security requirements tracked through the project lifecycle?** | Requirements traceability, status reporting, security items in project dashboard, closure verification. | Are security items visible to project managers? |
+| 6 | **Is security sign-off mandatory before go-live?** | Sign-off procedure, criteria for approval, authority to block deployment, exception process. | Can projects go live without security approval? |
+
+**Common Nonconformities:**
+- Security review occurs only at go-live (too late)
+- No threat modeling for new systems
+- Security sign-off not enforced for all projects
+
+---
+
+### Control 5.9: Inventory of Information and Associated Assets
+
+**CPS 234 Reference:** 20  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your complete information asset inventory.** | Asset register including: Hardware, software, data repositories, services, cloud resources, personnel. With classification and criticality ratings. | Is inventory comprehensive? |
+| 2 | **Show me how asset owners are assigned and documented.** | Owner assignment for each asset, documented responsibilities, sign-off records. | Do owners understand their accountability? |
+| 3 | **How are cloud services and SaaS applications tracked?** | Cloud asset discovery process, shadow IT detection, approved cloud services list, unapproved service handling. | What is your shadow IT detection capability? |
+| 4 | **Provide evidence of asset inventory review within the last 12 months.** | Review records, updates made, reconciliation with discovery tools, verification of owner assignments. | How often is inventory updated? |
+| 5 | **How is asset criticality determined?** | Criticality criteria (business impact, data sensitivity, regulatory requirements), documented classification per asset. | Are critical assets clearly identified? |
+| 6 | **Is there automated asset discovery?** | Discovery tools deployed, integration with CMDB, reconciliation process with manual inventory, coverage percentage. | What percentage of assets are automatically discovered? |
+
+---
+
+### Control 5.10: Acceptable Use of Information and Assets
+
+**CPS 234 Reference:** 20, 21  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your acceptable use policy.** | AUP covering: Internet use, email, mobile devices, social media, personal devices (BYOD), removable media. | Are all use cases covered? |
+| 2 | **Show me data handling procedures by classification level.** | Handling matrix: Storage requirements, transmission methods, disposal procedures per classification level. | Are procedures practical and followed? |
+| 3 | **Provide acknowledgment records for the acceptable use policy.** | Signed acknowledgments, electronic acceptance records, annual re-acknowledgment, new starter sign-off. | What is the acknowledgment rate? |
+| 4 | **How is compliance with acceptable use monitored?** | Technical controls (DLP, web filtering, USB control), manual audits, violation detection and response. | Is monitoring actually detecting violations? |
+| 5 | **How are acceptable use violations handled?** | Violation response procedure, disciplinary linkage, escalation path, recent examples (anonymised). | Are consequences enforced consistently? |
+
+---
+
+### Control 5.11: Return of Assets
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your asset return process for departing personnel.** | Offboarding checklist, asset return verification, HR/IT integration, final clearance dependency on return. | Is return verification linked to final pay? |
+| 2 | **What assets are tracked for return?** | Complete list: Laptops, phones, tablets, access cards, keys, tokens, documents, software licenses, company data. | Are all asset types covered? |
+| 3 | **How is asset return verified and documented?** | Return receipt, condition assessment, data verification (wiped), sign-off by multiple parties, audit trail. | Show me a recent leaver's asset return record. |
+| 4 | **What happens when assets cannot be returned?** | Remote wipe capability for devices, written confirmation of destruction, cost recovery procedures, risk assessment. | How are non-returned assets handled? |
+| 5 | **How does the process apply to contractors?** | Contract end procedures, asset return clauses, verification equivalent to employees. | Are contractors treated the same as employees? |
+
+---
+
+### Control 5.12: Classification of Information
+
+**CPS 234 Reference:** 20  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your information classification scheme.** | Classification levels (e.g., Public, Internal, Confidential, Restricted), clear criteria for each level, examples. | Are levels clearly defined with examples? |
+| 2 | **How does classification address confidentiality, integrity, and availability?** | Classification criteria covering all three dimensions, impact assessment methodology, aggregation considerations. | Is it more than just confidentiality? |
+| 3 | **How are privacy requirements incorporated into classification?** | Personal information identification, Privacy Act alignment, consent-based handling requirements, special categories (health, financial). | How is PII specifically classified? |
+| 4 | **Who is responsible for classifying information?** | Data owner responsibility documented, guidance available, classification review process, escalation for uncertainty. | Can staff correctly classify data? |
+| 5 | **How is classification reviewed and updated?** | Review triggers (business change, regulatory update), periodic reassessment, declassification procedures. | When was last classification review? |
+
+---
+
+### Control 5.13: Labelling of Information
+
+**CPS 234 Reference:** 21  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your information labelling procedures.** | Labelling procedures for: Electronic documents, emails, physical documents, storage media, databases. Format and location standards. | Are labelling requirements clear and practical? |
+| 2 | **How are electronic documents and emails labelled?** | Header/footer requirements, subject line prefixes, metadata tagging, email classification integration. | Show me examples of correctly labelled documents. |
+| 3 | **How are physical assets labelled?** | Storage media labels, document stamps, secure area signage, asset tags with classification. | Are physical labels consistently applied? |
+| 4 | **Is there automated classification and labelling?** | DLP tools, email classification add-ins, Microsoft Information Protection or equivalent, auto-labelling rules. | What percentage is auto-labelled vs manual? |
+| 5 | **How are staff trained on labelling requirements?** | Training content, examples of correct labelling, common mistakes, verification during audits. | Can staff demonstrate correct labelling? |
+
+---
+
+### Control 5.14: Information Transfer
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your information transfer policy and procedures.** | Transfer procedures covering: Email, file sharing, physical media, verbal communication, fax. Security requirements by classification. | Are all transfer methods covered? |
+| 2 | **What secure transfer mechanisms are available?** | Encrypted email, SFTP, secure file sharing platforms, courier services, cryptographic keys for sensitive transfers. | Are secure mechanisms easily accessible to staff? |
+| 3 | **How are transfer agreements managed with external parties?** | NDAs, data sharing agreements, security requirements in contracts, due diligence before transfer. | Show me a recent external transfer agreement. |
+| 4 | **How is confidential information transferred externally?** | Encryption requirements, approved channels, recipient verification, delivery confirmation, transfer logging. | Can you demonstrate a secure external transfer? |
+| 5 | **How are removable media transfers controlled?** | USB policy, encrypted device requirements, approval process, scanning before use, tracking and disposal. | Are USB devices encrypted and tracked? |
+
+---
+
+### Control 5.15: Access Control
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your access control policy.** | Policy covering: Access principles (need-to-know, least privilege), approval process, review requirements, segregation of duties. | Are access principles clearly defined? |
+| 2 | **How is least privilege implemented?** | Default deny approach, minimum necessary access, granular permissions, privilege escalation controls. | Can you demonstrate least privilege in action? |
+| 3 | **What is your access request and approval workflow?** | Request process, business justification requirements, owner approval, security review for sensitive access. | Is approval documented and enforced? |
+| 4 | **How often are access rights reviewed?** | Review schedule (quarterly for privileged, semi-annual for standard), recertification process, reviewer assignments. | Show me recent access review evidence. |
+| 5 | **How is access logging and monitoring implemented?** | Access logs maintained, monitoring for anomalies, alerting on suspicious patterns, log retention. | Are access logs actually reviewed? |
+| 6 | **How is physical and logical access coordinated?** | Integrated access management, facility access linked to system access, synchronized revocation on termination. | Is badge access revoked with system access? |
+
+---
+
+### Control 5.16: Identity Management
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Describe your identity lifecycle management process.** | Lifecycle stages: Creation, modification, suspension, deletion. Unique identifier assignment, no identifier reuse. | Is the full lifecycle documented? |
+| 2 | **How are identities verified before account creation?** | Verification process, manager approval, HR confirmation for employees, identity documentation for contractors. | What verification is required for new accounts? |
+| 3 | **How are shared/generic accounts controlled?** | Policy on shared accounts, exceptional use cases, compensating controls (enhanced logging), regular review. | What shared accounts exist and why? |
+| 4 | **What is the SLA for account deprovisioning on termination?** | Target timeframe (same day recommended), automated triggers from HR, verification of complete deprovisioning. | Show me recent termination timing evidence. |
+| 5 | **How are dormant accounts identified and managed?** | Inactivity threshold (e.g., 90 days), detection mechanism, review process, automatic disable/delete procedures. | How many dormant accounts exist currently? |
+| 6 | **How are identity changes managed (role changes, transfers)?** | Role change triggers, access review, removal of previous access, new access provisioning, timing requirements. | Is there an access review at every role change? |
+
+---
+
+### Control 5.17: Authentication Information
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your authentication policy (password/MFA requirements).** | Password policy: Minimum length (12+ characters recommended), complexity, history, expiration. MFA requirements for different system types. | Do requirements meet current best practice? |
+| 2 | **How is initial authentication information provided securely?** | Secure distribution method, forced change on first use, identity verification before password reset. | Is initial password distribution secure? |
+| 3 | **Where is MFA implemented?** | MFA coverage: VPN, privileged accounts, cloud services, email, remote access. Technology used (TOTP, push, hardware keys). | Is MFA coverage comprehensive? |
+| 4 | **What is your password reset process?** | Self-service capability, identity verification requirements, help desk procedures, reset logging. | Is reset process secure against social engineering? |
+| 5 | **How are users educated on credential protection?** | Training content, phishing awareness, credential sharing prohibition, reporting suspicious requests. | Is training effective? (Check phishing simulation results) |
+
+---
+
+### Control 5.18: Access Rights
+
+**CPS 234 Reference:** 18  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **What is your access provisioning process?** | Request workflow, approval chain, documentation, provisioning timeframe, verification of correct access. | Is access provisioned consistently? |
+| 2 | **How frequently are access rights reviewed?** | Review schedule by access type, privileged accounts quarterly minimum, standard semi-annual, evidence of reviews. | Are reviews completed on time? |
+| 3 | **What triggers an access modification?** | Role change, transfer, project end, access review finding, security incident, manager request. | Are all triggers captured? |
+| 4 | **What is your access revocation SLA on termination?** | Same-day target, automated triggers, verification of complete revocation, exception handling. | Show me timing for recent terminations. |
+| 5 | **Is there segregation between access request and approval?** | Requestor cannot approve own access, manager/owner approval, independent verification for sensitive access. | Can users approve their own access? |
+
+---
+
+### Control 5.19: Information Security in Supplier Relationships
+
+**CPS 234 Reference:** 19, 21  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your supplier security assessment process.** | Risk-based classification, assessment methodology (questionnaires, audits), due diligence procedures, minimum requirements. | Are all suppliers assessed? |
+| 2 | **Show me your critical supplier register.** | Identification criteria, current critical suppliers, enhanced requirements, assessment frequency. | How are critical suppliers identified? |
+| 3 | **What security requirements are included in supplier contracts?** | Standard clauses: Data protection, incident notification, audit rights, compliance requirements, liability. | Are security requirements contractually binding? |
+| 4 | **How is ongoing supplier security monitoring performed?** | Periodic reassessment, certification tracking, security scorecard monitoring, audit exercises. | Show me evidence of ongoing monitoring. |
+| 5 | **How does CPS 234 para 21 apply to your suppliers?** | Third party capability assessment, security requirements in agreements, incident notification obligations, testing requirements. | Are CPS 234 requirements flowed down to material suppliers? |
+
+---
+
+### Control 5.20: Addressing Security in Supplier Agreements
+
+**CPS 234 Reference:** 19  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide template security clauses used in supplier agreements.** | Standard security schedule, compliance obligations, data handling requirements, termination provisions. | Are clauses comprehensive and enforceable? |
+| 2 | **What incident notification requirements are in agreements?** | Notification timeframes (e.g., 24-72 hours), escalation contacts, severity definitions, coordination requirements. | Can suppliers meet your notification requirements? |
+| 3 | **Do agreements include audit rights?** | Right to audit, assessment access, evidence provision requirements, audit cost allocation, advance notice. | Have you exercised audit rights? |
+| 4 | **What certification requirements apply to suppliers?** | ISO 27001, SOC 2 Type II, other certifications by criticality, annual evidence provision. | Are certification requirements enforced? |
+| 5 | **How are subcontractor security requirements addressed?** | Flow-down of requirements, approval for subcontracting, visibility into subcontractor use. | Do you know who your suppliers' suppliers are? |
+
+---
+
+### Control 5.21: Managing Security in the ICT Supply Chain
+
+**CPS 234 Reference:** 21a, 21b, 21c  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How are ICT supply chain risks identified and managed?** | Supply chain risk assessment, vendor concentration risk, geographic considerations, single points of failure. | Are supply chain risks in your risk register? |
+| 2 | **How is the security of ICT products verified?** | Product security assessments, vulnerability disclosure programs, secure development evidence, security certifications. | Do you assess product security before purchase? |
+| 3 | **Do you require Software Bill of Materials (SBOM)?** | SBOM requirements, component traceability, open source identification, vulnerability tracking. | Can you identify vulnerable components in your software? |
+| 4 | **How are software updates and patches verified?** | Integrity verification, trusted sources, testing before deployment, rollback capability. | How do you verify patch authenticity? |
+| 5 | **How are supply chain security incidents managed?** | Notification handling, impact assessment, coordinated response, communication with affected parties. | How would you respond to a supplier breach? |
+
+---
+
+### Control 5.22: Monitoring, Review and Change Management of Supplier Services
+
+**CPS 234 Reference:** 21a, 21b, 21c  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How are supplier services monitored for security?** | SLA monitoring, security metric tracking, performance dashboards, automated alerts. | Are security metrics actually tracked? |
+| 2 | **What is your supplier reassessment schedule?** | Annual minimum, trigger-based (incidents, changes), certification renewal tracking, reassessment records. | Show me recent reassessment evidence. |
+| 3 | **How are changes to supplier services managed?** | Change notification requirements, security impact assessment, approval before implementation. | How are you notified of supplier changes? |
+| 4 | **How are supplier security incidents handled?** | Notification process, impact assessment, coordinated response, root cause analysis, follow-up. | Show me how a recent supplier incident was handled. |
+| 5 | **How is security assessed at contract renewal?** | Security review requirements, updated requirements, lessons learned incorporation, right to terminate. | Is security re-evaluated at renewal? |
+
+---
+
+### Control 5.23: Information Security for Cloud Services
+
+**CPS 234 Reference:** 21  
+**CPS 230 Reference:** 11, 12
+
+**NEW IN 2022 - Critical for SaaS**
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your cloud service evaluation and selection criteria.** | Security requirements, compliance certifications, data residency, exit strategy, vendor reputation. | Is there a formal evaluation process? |
+| 2 | **Show me your shared responsibility matrix for each major cloud provider.** | Documented matrix with AWS/Azure/GCP, clear delineation of provider vs customer responsibilities, gaps addressed. | Is shared responsibility clearly documented? |
+| 3 | **How is cloud security configuration managed?** | CSPM tools deployed, configuration standards, drift detection, compliance monitoring, remediation tracking. | What CSPM tools are used? |
+| 4 | **Provide your documented exit strategy for cloud services.** | Data extraction procedures, transition planning, service continuity, contractual provisions, tested procedures. | Has the exit strategy been tested? |
+| 5 | **How is data protected in cloud environments?** | Encryption at rest (AES-256), encryption in transit (TLS 1.2+), key management (customer-managed vs provider), data residency. | Who controls the encryption keys? |
+| 6 | **How are cloud provider certifications reviewed?** | Annual SOC 2 Type II review, ISO 27001 certificate validation, relevant control scope, exception assessment. | Show me the latest cloud provider SOC 2 review. |
+| 7 | **How is multi-tenant isolation verified?** | Isolation architecture documentation, tenant boundary testing, penetration test scope including tenant isolation. | How do you verify tenant isolation? |
+
+**Common Nonconformities:**
+- No documented exit strategy
+- Shared responsibility model not documented
+- CSPM not deployed or alerts not actioned
+- Cloud provider certifications not reviewed annually
+
+---
+
+### Control 5.24: Incident Management Planning and Preparation
+
+**CPS 234 Reference:** 23, 24, 25a, 25b  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your incident response plan.** | IRP document: Roles, responsibilities, severity classification, escalation matrix, communication procedures, containment strategies. | Is the plan comprehensive and current? |
+| 2 | **Show me your incident classification scheme.** | Severity levels (Critical/High/Medium/Low), criteria for each level, response timeframes, escalation triggers. | Are severity levels clearly defined? |
+| 3 | **How are incident response roles assigned?** | IRT membership, on-call procedures, decision authority, backup personnel, contact details. | Who is on call right now? |
+| 4 | **Provide evidence of incident response testing.** | Tabletop exercises, simulation drills, test frequency (annual minimum), lessons learned, improvement actions. | When was the last IRP test? |
+| 5 | **How are APRA notification requirements addressed?** | CPS 234 para 35 procedures, 72-hour timeline, materiality criteria, notification template, escalation to board. | Can you meet the 72-hour requirement? |
+| 6 | **How is coordination managed with legal, PR, and executives?** | Cross-functional IRT, communication protocols, decision authority, external communication approval. | Are non-technical teams included in IRP? |
+
+---
+
+### Control 5.25: Assessment and Decision on Security Events
+
+**CPS 234 Reference:** 25a  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How are security events triaged?** | Triage process, criteria for incident declaration, escalation authority, documentation requirements. | Is there a clear triage process? |
+| 2 | **What criteria determine incident severity?** | Severity matrix: Impact (data volume, system criticality), scope (users affected), regulatory implications. | Are criteria objective and measurable? |
+| 3 | **Is there 24/7 event assessment capability?** | SOC coverage, on-call arrangements, automated alerting, escalation procedures outside business hours. | What happens to alerts at 3am? |
+| 4 | **What are your event assessment SLAs?** | Initial assessment timeframe, escalation timelines, severity-specific response times. | Are SLAs met consistently? |
+| 5 | **How are assessment decisions documented?** | Event logs, triage notes, incident tickets, decision rationale, audit trail. | Can you trace a recent event through triage? |
+
+---
+
+### Control 5.26: Response to Security Incidents
+
+**CPS 234 Reference:** 23, 25a  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How is incident containment achieved?** | Containment procedures, isolation capabilities, network segmentation, account suspension, system shutdown authority. | What containment options are available? |
+| 2 | **Provide your incident response playbooks.** | Playbooks for common scenarios: Ransomware, data breach, account compromise, DDoS, insider threat. | Are playbooks scenario-specific and current? |
+| 3 | **How is incident eradication performed?** | Root cause elimination procedures, malware removal, vulnerability remediation, system rebuild. | How do you ensure threats are completely removed? |
+| 4 | **What is the incident recovery process?** | Service restoration procedures, verification before return to normal, enhanced monitoring during recovery. | How is "clean" verified before return to normal? |
+| 5 | **How are stakeholders notified during incidents?** | Communication plan, notification templates, update frequency, internal vs external communication. | Who needs to be notified and when? |
+
+---
+
+### Control 5.27: Learning from Security Incidents
+
+**CPS 234 Reference:** 24  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How are post-incident reviews conducted?** | PIR process, timing (within 2 weeks), participants, blameless approach, documentation requirements. | Are PIRs conducted consistently? |
+| 2 | **Show me how lessons learned are tracked to completion.** | Improvement actions, owners, deadlines, verification of completion, integration with risk register. | Are improvement actions actually completed? |
+| 3 | **How are lessons shared across the organisation?** | Incident briefings, awareness communications, training updates, policy/procedure changes. | Is learning shared beyond the IRT? |
+| 4 | **How are incident trends analysed?** | Trend reporting, root cause patterns, systemic improvement opportunities, metrics tracking. | Are you seeing the same incidents repeatedly? |
+| 5 | **How do external incidents inform your security?** | Industry incident monitoring, threat intelligence integration, proactive control assessment. | How do you learn from others' incidents? |
+
+---
+
+### Control 5.28: Collection of Evidence
+
+**CPS 234 Reference:** 23, 25a  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your evidence collection procedures.** | Collection procedures, chain of custody, preservation methods, handling guidelines, storage requirements. | Are procedures forensically sound? |
+| 2 | **How is evidence integrity maintained?** | Hashing (SHA-256), write-blocking, imaging procedures, verification of copies, documentation. | How do you prove evidence hasn't been tampered with? |
+| 3 | **How is chain of custody documented?** | Chain of custody forms, access logs, secure storage, handover documentation. | Can you demonstrate unbroken chain of custody? |
+| 4 | **Are staff trained on evidence handling?** | Forensic awareness training, do's and don'ts, when to escalate, preservation priorities. | Do responders know how to preserve evidence? |
+| 5 | **Do you have access to forensic expertise?** | Internal forensic capability, external retainer agreements, escalation procedures, contact details. | Who would conduct a forensic investigation? |
+
+---
+
+### Control 5.29: Information Security During Disruption
+
+**CPS 234 Reference:** 21d  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How are security requirements maintained during disruptions?** | Security considerations in BCP, minimum security requirements during crisis, risk acceptance authority. | What security can be compromised during disruption? |
+| 2 | **How are security controls adapted during crisis situations?** | Crisis mode procedures, temporary control measures, exception documentation, enhanced monitoring. | What security exceptions are pre-approved for crisis? |
+| 3 | **How do security and business continuity teams coordinate?** | Joint planning, integrated testing, communication procedures, decision authority. | Is security included in BC planning? |
+| 4 | **How is security restored after disruption?** | Security verification before return to normal, control effectiveness confirmation, monitoring period. | How do you verify security is restored? |
+| 5 | **Are security exceptions during disruption documented?** | Exception records, risk acceptance, post-event review, lessons learned integration. | Are exceptions tracked for post-event review? |
+
+---
+
+### Control 5.30: ICT Readiness for Business Continuity
+
+**CPS 234 Reference:** 21, 22  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your ICT continuity/DR plan.** | DR plan: RTOs, RPOs per system, recovery procedures, dependencies, communication procedures. | Are RTOs/RPOs aligned with business requirements? |
+| 2 | **Show me RTO/RPO definitions for critical systems.** | Documented targets per system, business impact analysis linkage, achievability verification. | Can you actually meet these targets? |
+| 3 | **How often is DR/BC testing conducted?** | Test schedule (annual minimum), test scope (full vs partial), success criteria, test results. | When was the last full DR test? |
+| 4 | **Provide results from the most recent DR test.** | Test report, objectives achieved, issues identified, remediation actions, next test date. | Were RTOs/RPOs achieved in testing? |
+| 5 | **How are backups tested for restoration?** | Restoration testing schedule, verification of backup integrity, time to restore measurement. | When was backup restoration last tested? |
+| 6 | **Is there geographic redundancy for critical systems?** | Multi-region deployment, failover capability, data replication, maximum data loss tolerance. | Where is your DR site? |
+
+---
+
+### Control 5.31: Legal, Statutory, Regulatory and Contractual Requirements
+
+**CPS 234 Reference:** 18, 19  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your compliance obligations register.** | Register listing: Applicable laws (Privacy Act, CPS 234, GDPR if applicable), regulations, contractual requirements, assessment of applicability. | Is the register comprehensive and current? |
+| 2 | **How are compliance requirements tracked and updated?** | Regulatory monitoring process, legal updates tracking, compliance review schedule, impact assessment procedure. | How do you stay current? |
+| 3 | **How are contractual security obligations identified?** | Contract review process, security obligations extraction, compliance verification, breach implications. | Are security obligations tracked per contract? |
+| 4 | **How is compliance verified?** | Compliance assessments, audit program, evidence collection, gap remediation tracking. | How do you know you're compliant? |
+| 5 | **How do you respond to regulatory changes?** | Impact assessment procedure, implementation planning, deadline tracking, resource allocation. | Show me response to a recent regulatory change. |
+
+---
+
+### Control 5.32: Intellectual Property Rights
+
+**CPS 234 Reference:** 17, 18, 19, 20  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your intellectual property protection procedures.** | IP policy, copyright compliance, software licensing, trademark protection measures. | Are IP protection measures documented? |
+| 2 | **How is software licensing compliance managed?** | License inventory, compliance monitoring, audit trail for acquisitions, periodic verification. | Is your software licensed correctly? |
+| 3 | **How is open source software managed?** | Open source policy, license compatibility review, approved component list, SBOM maintenance. | Do you know what open source you're using? |
+| 4 | **How are employees made aware of IP requirements?** | IP clauses in contracts, awareness training, acceptable use policy coverage. | Do staff understand IP obligations? |
+| 5 | **How is third-party IP protected?** | License agreements, usage restrictions, confidentiality requirements, return/destruction procedures. | How do you protect client IP? |
+
+---
+
+### Control 5.33: Protection of Records
+
+**CPS 234 Reference:** 21a, 21b  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your records management policy.** | Record types, retention periods, protection requirements, disposal procedures, legal hold. | Are retention periods legally compliant? |
+| 2 | **How are records protected from loss and destruction?** | Backup procedures, redundancy, access controls, integrity verification, disaster recovery. | Can records be recovered after disaster? |
+| 3 | **How is record integrity ensured?** | Audit trails, access logging, version control, tamper detection, digital signatures where required. | How do you know records haven't been modified? |
+| 4 | **How are records disposed of securely?** | Disposal procedures, destruction verification, certificates of destruction, media sanitisation. | Can you prove secure destruction? |
+| 5 | **Can records be retrieved when required?** | Retrieval capability, search functions, legal hold procedures, response to legal requests. | How quickly can you respond to legal requests? |
+
+---
+
+### Control 5.34: Privacy and Protection of PII
+
+**CPS 234 Reference:** 21b, 21d  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your privacy policy and PII handling procedures.** | Privacy policy, data handling procedures, Privacy Act compliance, consent management. | Is privacy policy publicly available? |
+| 2 | **How is PII processing documented?** | Data inventory, processing purposes, legal basis, data flows, retention periods. | Do you know what PII you process? |
+| 3 | **What technical measures protect PII?** | Encryption, access controls, pseudonymisation, data minimisation, secure deletion. | Is PII encrypted at rest and in transit? |
+| 4 | **How are data subject rights managed?** | Access request procedures, correction/deletion processes, response timelines, request tracking. | Can you respond to access requests within timeframe? |
+| 5 | **What is your privacy breach notification process?** | Breach assessment criteria, notification procedures, OAIC reporting requirements, affected party notification. | Can you notify within required timeframes? |
+
+---
+
+### Control 5.35: Independent Review of Information Security
+
+**CPS 234 Reference:** 30, 31, 32  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your independent security review program.** | Internal audit program, external assessments, penetration testing, scope and frequency. | Is there truly independent review? |
+| 2 | **How is reviewer independence ensured?** | No conflicts of interest, independence declarations, separation from operational responsibilities. | Are reviewers independent from areas reviewed? |
+| 3 | **How are review findings tracked and remediated?** | Finding register, remediation timelines, verification of closure, escalation procedures. | Are findings closed within timeframes? |
+| 4 | **For CPS 234: Is there Line 2 oversight of security controls?** | Second line testing program, control effectiveness assessment, reporting to risk committees. | How does Line 2 oversee security? |
+| 5 | **Provide evidence of recent external security assessment.** | Penetration test report, security audit report, findings and remediation status. | When was the last external assessment? |
+
+---
+
+### Control 5.36: Compliance with Policies, Rules and Standards
+
+**CPS 234 Reference:** 32  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How is compliance with security policies monitored?** | Compliance monitoring program, automated checks, manual reviews, exception tracking. | Is monitoring continuous or periodic? |
+| 2 | **How often are compliance reviews conducted?** | Review schedule, coverage of policy requirements, finding documentation, trend analysis. | Show me recent compliance review results. |
+| 3 | **How are compliance exceptions managed?** | Exception request process, approval authority, compensating controls, time limits, regular review. | How many exceptions currently exist? |
+| 4 | **How is compliance status reported to management?** | Compliance dashboards, management reports, trend analysis, risk-based prioritisation. | Does management see compliance status? |
+| 5 | **How are compliance violations addressed?** | Remediation process, disciplinary linkage, root cause analysis, recurrence prevention. | Show me how a violation was addressed. |
+
+---
+
+### Control 5.37: Documented Operating Procedures
+
+**CPS 234 Reference:** 19  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are operating procedures documented for critical processes?** | Procedure documentation, coverage of security operations, version control, review dates. | Are critical processes documented? |
+| 2 | **How are procedures made accessible to relevant personnel?** | Documentation repository, access controls, search capability, offline access for emergency. | Can staff find procedures when needed? |
+| 3 | **How often are procedures reviewed and updated?** | Review schedule, update triggers, change management, owner accountability. | When were procedures last reviewed? |
+| 4 | **Do procedures include security steps?** | Security embedded in procedures, not separate, verification checkpoints, security considerations. | Is security integral or bolted on? |
+| 5 | **How is staff competence on procedures verified?** | Training records, competency verification, procedure acknowledgment, periodic assessment. | Can staff demonstrate procedure knowledge? |
+
+---
+
+## SECTION 3: People Controls (A.6.1 - A.6.8)
+
+### Control 6.1: Screening
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your pre-employment screening policy.** | Screening requirements, check types (criminal, employment, qualifications), timing, role-based requirements. | Are all candidates screened? |
+| 2 | **How is screening proportional to role sensitivity?** | Tiered screening based on access levels, enhanced checks for privileged roles, risk-based approach. | What extra checks for sensitive roles? |
+| 3 | **Are ongoing/periodic checks conducted?** | Periodic re-screening policy, trigger events, frequency for sensitive roles, continuous monitoring. | Is screening a one-time event or ongoing? |
+| 4 | **How are contractors and third parties screened?** | Contract requirements, equivalent standards, evidence collection, verification. | Do contractors receive equivalent screening? |
+| 5 | **Is screening compliant with applicable laws?** | Privacy considerations, consent requirements, record retention, discrimination avoidance. | Are screening practices legally compliant? |
+
+---
+
+### Control 6.2: Terms and Conditions of Employment
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Do employment contracts include security responsibilities?** | Security clauses in contracts, confidentiality obligations, acceptable use acknowledgment. | Show me the security clauses in contracts. |
+| 2 | **How are security obligations communicated to new starters?** | Induction materials, policy acknowledgment, security briefing, ongoing communication. | Is security emphasised from day one? |
+| 3 | **Do contracts address post-employment obligations?** | Confidentiality continuing after termination, return of assets, ongoing restrictions. | Are post-employment obligations enforceable? |
+| 4 | **Are equivalent terms applied to contractors?** | Contract clauses for non-employees, equivalent security obligations, compliance monitoring. | Do contractor contracts mirror employee terms? |
+| 5 | **How are changes to terms communicated?** | Update notification process, re-acknowledgment requirements, version tracking. | How do employees know terms have changed? |
+
+---
+
+### Control 6.3: Information Security Awareness, Education and Training
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your security awareness program.** | Program documentation, content coverage, delivery methods, frequency, target audience. | Is the program comprehensive? |
+| 2 | **What is your training completion rate?** | Completion metrics (target 95%+), tracking mechanism, follow-up for non-completion, escalation. | What is current completion rate? |
+| 3 | **Is role-specific training provided?** | Developer security training, privileged user training, incident responder training, content details. | What extra training for high-risk roles? |
+| 4 | **How is training effectiveness measured?** | Assessment/testing, knowledge retention checks, phishing simulation results, behavior metrics. | How do you know training is effective? |
+| 5 | **How is content updated for new threats?** | Content review schedule, current threat incorporation, regulatory updates, industry trends. | When was content last updated? |
+| 6 | **Provide phishing simulation results.** | Simulation frequency, click rates (target <5%), remedial training for failures, trend improvement. | What is your current phishing click rate? |
+
+**Common Nonconformities:**
+- Training completion below 95%
+- No role-specific training for developers
+- Phishing simulation click rates above 10%
+- Training content not updated for current threats
+
+---
+
+### Control 6.4: Disciplinary Process
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your disciplinary process for security violations.** | Procedure documentation, escalation levels, HR involvement, legal compliance. | Is the process documented and fair? |
+| 2 | **Is the process communicated to all personnel?** | Policy communication, acknowledgment records, regular reminders, new starter awareness. | Do staff know the consequences of violations? |
+| 3 | **Can you provide examples of process application?** | Case examples (anonymised), consistency of application, documentation completeness. | Is the process actually applied? |
+| 4 | **Does the process apply to contractors?** | Contract clauses, escalation to vendor management, equivalent consequences. | Are contractors subject to similar process? |
+| 5 | **How are violations classified by severity?** | Severity criteria, proportionate responses, escalation triggers, repeat offense handling. | Are consequences proportionate? |
+
+---
+
+### Control 6.5: Responsibilities After Termination or Change of Employment
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **What post-employment confidentiality obligations exist?** | NDA clauses, employment contract terms, duration of obligations, enforceability. | Are obligations legally enforceable? |
+| 2 | **How are departing employees reminded of obligations?** | Exit interview content, written reminders, acknowledgment of ongoing obligations. | Is there a structured exit process? |
+| 3 | **How are role changes managed from a security perspective?** | Access review at role change, removal of previous access, new role onboarding, timing. | Is access reviewed at every role change? |
+| 4 | **How is knowledge transfer managed securely?** | Handover procedures, documentation of responsibilities, access transition, supervision. | Is sensitive knowledge protected during transition? |
+| 5 | **How are confidentiality obligations enforced?** | Monitoring capability, legal recourse, examples of enforcement (anonymised). | Can obligations be enforced? |
+
+---
+
+### Control 6.6: Confidentiality or Non-Disclosure Agreements
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are NDAs required for employees and relevant third parties?** | NDA policy, standard templates, signing timing (before access), coverage requirements. | Is NDA signing mandatory before access? |
+| 2 | **Do NDAs reflect organisation's protection needs?** | Scope of confidential information, obligations, duration, remedies, mutual vs one-way. | Are NDAs comprehensive? |
+| 3 | **Are NDAs reviewed and updated regularly?** | Review schedule, legal review involvement, update triggers, version control. | When were NDAs last reviewed? |
+| 4 | **Is there a register of signed NDAs?** | NDA register, signed copies stored, accessibility for reference, expiry tracking. | Can you locate any person's NDA? |
+| 5 | **Are mutual NDAs used appropriately?** | Two-way confidentiality for partnerships, equivalent obligations, balanced terms. | Is confidentiality mutual where appropriate? |
+
+---
+
+### Control 6.7: Remote Working
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your remote working security policy.** | Policy document, security requirements, approved locations, prohibited activities. | Are remote work security requirements clear? |
+| 2 | **What security controls apply to remote working?** | VPN requirements, endpoint security, screen lock, secure Wi-Fi usage, MFA. | Are technical controls enforced? |
+| 3 | **How is data protected when working remotely?** | Encryption requirements, secure file access, local storage restrictions, printing controls. | Can sensitive data be saved locally? |
+| 4 | **Are remote workers trained on security requirements?** | Training content, policy acknowledgment, periodic reminders, compliance verification. | Have remote workers completed specific training? |
+| 5 | **How is home working environment security assessed?** | Self-assessment checklist, physical security considerations, network security, verification. | What assurance do you have about home setups? |
+
+---
+
+### Control 6.8: Information Security Event Reporting
+
+**CPS 234 Reference:** 23, 25a  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **What is the process for reporting security events?** | Reporting channels (email, portal, phone), 24/7 availability, ease of reporting. | Is reporting easy and accessible? |
+| 2 | **How are personnel made aware of reporting procedures?** | Training content, visible reporting information, regular reminders, new starter induction. | Can all staff explain how to report? |
+| 3 | **Is there protection for reporters?** | Whistleblower protection, anonymous reporting option, no retaliation policy. | Are reporters protected from retaliation? |
+| 4 | **What types of events should be reported?** | Reporting guidance, examples of reportable events, "when in doubt, report" message. | Do staff know what to report? |
+| 5 | **What is the expected reporting timeframe?** | Timely reporting requirements, escalation for urgent events, acknowledgment to reporter. | Are events reported promptly? |
+
+---
+
+## SECTION 4: Physical Controls (A.7.1 - A.7.14)
+
+### Control 7.4: Physical Security Monitoring
+
+**CPS 234 Reference:** 15, 17  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is physical security monitoring implemented?** | CCTV coverage, access monitoring, security personnel, alarm systems, monitoring hours. | What is monitored and when? |
+| 2 | **Are monitoring systems continuously operational?** | 24/7 coverage, recording retention, system redundancy, maintenance schedule. | What if monitoring fails? |
+| 3 | **How is monitoring data retained and protected?** | Retention period, access controls, integrity protection, secure storage. | Who can access monitoring footage? |
+| 4 | **Is there response capability for detected events?** | Response procedures, security personnel availability, escalation process, response times. | What happens when something is detected? |
+| 5 | **For cloud-based systems, how is physical security addressed?** | Cloud provider certifications (SOC 2, ISO 27001), shared responsibility documentation, certificate review. | Show me cloud provider physical security evidence. |
+
+---
+
+### Control 7.1-7.7: Physical Controls (Grouped)
+
+**CPS 234 Reference:** 15, 17  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are physical security perimeters defined?** | Secure areas identified, boundary documentation, security zones, access requirements per zone. | Are secure areas clearly identified? |
+| 2 | **How is access to secure areas controlled?** | Access badges, biometrics, access logs, authorisation process, visitor management. | Who can access secure areas? |
+| 3 | **How are visitors managed?** | Visitor registration, escort requirements, visitor badges, time limits, sign-in/out. | Are visitors always escorted? |
+| 4 | **Are environmental controls in place?** | Fire detection/suppression, climate control (HVAC), water damage prevention, monitoring. | What environmental protections exist? |
+| 5 | **Is there a clean desk/clear screen policy?** | Policy documentation, compliance checks, awareness, enforcement. | How is clean desk verified? |
+| 6 | **For cloud operations, how is physical security reliance documented?** | Shared responsibility model, cloud provider certifications, annual review of certificates. | Is reliance on cloud provider documented? |
+
+---
+
+### Control 7.8-7.14: Equipment Protection (Grouped)
+
+**CPS 234 Reference:** 15, 17  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is equipment sited to reduce environmental risks?** | Server room location (no windows, upper floors), cable routing, environmental controls. | Where is critical equipment located? |
+| 2 | **Are supporting utilities protected?** | UPS systems, generator backup, redundant cooling, utility monitoring, maintenance. | What is backup power duration? |
+| 3 | **How is cabling security maintained?** | Cable labelling, power/data segregation, physical protection, access restrictions. | Is cabling protected from tampering? |
+| 4 | **Is equipment maintained according to specifications?** | Maintenance schedules, authorised service personnel, maintenance records, warranty tracking. | Are maintenance records current? |
+| 5 | **How are equipment moves/disposals managed?** | Authorisation process, data sanitisation, secure disposal, certificates of destruction. | How is data wiped before disposal? |
+| 6 | **Is unattended equipment protected?** | Screen lock policies (auto-lock), physical locks, automatic logoff, monitoring. | What is the auto-lock timeout? |
+
+---
+
+## SECTION 5: Technological Controls (A.8.1 - A.8.34)
+
+### Control 8.1: User Endpoint Devices
+
+**CPS 234 Reference:** 15  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your endpoint security policy.** | Policy covering: Corporate devices, BYOD, mobile devices, MDM requirements. | Are all device types covered? |
+| 2 | **Are endpoints encrypted?** | Full disk encryption, technology used (BitLocker, FileVault), key management, compliance rate. | What is encryption compliance rate? |
+| 3 | **What endpoint protection is deployed?** | AV/EDR solution, central management, signature updates, behavioral detection. | What EDR solution is used? |
+| 4 | **How are lost/stolen devices handled?** | Remote wipe capability, reporting process, incident response, device tracking. | Can you remotely wipe a device right now? |
+| 5 | **Are screen locks enforced?** | Timeout settings (5 minutes recommended), GPO/MDM enforcement, compliance monitoring. | What is the lock timeout? |
+| 6 | **How is USB/removable media controlled?** | USB blocking/allow-listing, DLP controls, encryption requirements, policy enforcement. | Are USB ports controlled? |
+
+---
+
+### Control 8.2: Privileged Access Rights
+
+**CPS 234 Reference:** 15, 20  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your privileged access inventory.** | Complete list of privileged accounts, role definitions, justification for each, owner assignments. | Do you know all privileged accounts? |
+| 2 | **How is privileged access provisioned?** | Approval workflow, business justification requirements, least privilege verification, time limits. | Is just-in-time access used? |
+| 3 | **How often is privileged access reviewed?** | Review frequency (quarterly minimum), recertification process, review evidence. | Show me recent privileged access review. |
+| 4 | **Is MFA mandatory for privileged accounts?** | MFA requirement, authentication methods, enforcement mechanism, exception handling. | Can privileged accounts bypass MFA? |
+| 5 | **How is privileged activity monitored?** | Session recording, command logging, alert triggers, log retention, review process. | Are privileged sessions recorded? |
+| 6 | **Is a PAM solution deployed?** | PAM tool used, features enabled (vaulting, rotation, session recording), coverage. | What PAM capabilities are implemented? |
+
+---
+
+### Control 8.3: Information Access Restriction
+
+**CPS 234 Reference:** 15, 20  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How is access restricted based on classification?** | Access controls aligned with classification levels, technical enforcement, verification. | Is access technically enforced by classification? |
+| 2 | **How is need-to-know enforced?** | Access request process, owner approval, periodic review, access removal when no longer needed. | How do you verify ongoing need? |
+| 3 | **Are there controls on data extraction?** | DLP controls, print restrictions, download monitoring, copy/paste limitations. | Can users extract sensitive data? |
+| 4 | **How is database access controlled?** | Database access controls, query logging, direct access restrictions, service account management. | Who has direct database access? |
+| 5 | **Are access restrictions auditable?** | Access logs, permission records, change audit trail, reporting capability. | Can you audit who accessed what data? |
+
+---
+
+### Control 8.4: Access to Source Code
+
+**CPS 234 Reference:** 15  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How is source code repository access controlled?** | Repository access management (GitHub/GitLab), role-based access, access logging. | Who can access source code? |
+| 2 | **Is production code access separately controlled?** | Separation from development, restricted access, approval process, audit trail. | Can developers access production code directly? |
+| 3 | **Are code changes tracked and attributed?** | Version control, commit attribution, code review records, branch protection. | Can changes be traced to individuals? |
+| 4 | **How is access to build/deployment tools controlled?** | CI/CD access restrictions, deployment approvals, secrets management. | Can developers deploy to production? |
+| 5 | **How are software dependencies managed?** | Approved library sources, vulnerability scanning, SBOM generation, license compliance. | Do you scan dependencies for vulnerabilities? |
+
+---
+
+### Control 8.5: Secure Authentication
+
+**CPS 234 Reference:** 15  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **What authentication technologies are implemented?** | Methods used, password complexity, MFA types, biometrics if applicable. | What authentication methods are used? |
+| 2 | **Where is MFA implemented?** | Coverage: Remote access, privileged accounts, cloud services, email, internal applications. | Is MFA comprehensive? |
+| 3 | **Are default/weak passwords prohibited?** | Password policy enforcement, default credential detection, password blacklists. | How are weak passwords prevented? |
+| 4 | **How are authentication failures handled?** | Account lockout policy, failed attempt logging, alerting, unlock process. | What happens after failed attempts? |
+| 5 | **Is there protection against credential attacks?** | Rate limiting, CAPTCHA, account lockout, brute force detection, credential stuffing protection. | What protects against automated attacks? |
+
+---
+
+### Control 8.6: Capacity Management
+
+**CPS 234 Reference:** 15  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How is system capacity monitored?** | Monitoring tools, metrics tracked, dashboards, alerting thresholds. | What capacity metrics are monitored? |
+| 2 | **Is there capacity planning?** | Forecasting methodology, growth projections, resource planning, budget alignment. | How is future capacity planned? |
+| 3 | **What alerts exist for capacity thresholds?** | Alert configuration, threshold levels, escalation procedures, response actions. | What are the alert thresholds? |
+| 4 | **How is capacity scaled when needed?** | Scaling procedures, auto-scaling capability, manual intervention process, emergency scaling. | Can you scale quickly if needed? |
+| 5 | **Is redundancy implemented for critical systems?** | High availability architecture, failover capability, redundant components, SLA impact. | What is your availability target? |
+
+---
+
+### Control 8.7: Protection from Malware
+
+**CPS 234 Reference:** 15, 21a, 21b, 21d  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is anti-malware deployed across all endpoints?** | Coverage rate, solution deployed, central management, compliance monitoring. | What is current deployment coverage? |
+| 2 | **Are signatures/definitions updated automatically?** | Update frequency, compliance monitoring, offline device handling, update verification. | How current are definitions? |
+| 3 | **Is malware scanning performed on email/web traffic?** | Email gateway scanning, web proxy scanning, sandboxing, detonation capability. | What gateway protections exist? |
+| 4 | **How are malware detections handled?** | Alert triage, investigation procedures, containment, remediation, reporting. | Walk me through a recent detection. |
+| 5 | **Is user awareness training provided?** | Training content, phishing simulations, suspicious file handling, reporting. | What malware topics are covered in training? |
+
+---
+
+### Control 8.7a: Patch Monitoring and Penetration Testing (HLRA)
+
+**CPS 234 Reference:** 15, 21a, 21b, 21d  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Describe your patch management process.** | Patch identification, testing, deployment, emergency procedures, rollback capability. | How are patches identified and deployed? |
+| 2 | **What are your patching SLAs?** | Critical: 7-14 days, High: 30 days, Medium: 60 days. Compliance metrics, exception handling. | Are SLAs being met? |
+| 3 | **How often is penetration testing conducted?** | Frequency (annual minimum), scope, qualified testers, methodology (PTES, OWASP). | When was the last pen test? |
+| 4 | **How are penetration test findings remediated?** | Finding tracking, remediation timelines, verification testing, retest results. | Are pen test findings closed? |
+| 5 | **Is vulnerability scanning conducted regularly?** | Scan frequency, coverage, finding prioritisation, remediation tracking, trend reporting. | What is your vulnerability scan frequency? |
+
+---
+
+### Control 8.8: Management of Technical Vulnerabilities
+
+**CPS 234 Reference:** 15, 21a, 21b, 21d  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Describe your vulnerability management program.** | Scanning tools, frequency, coverage, finding management, remediation workflow. | Is VM a formal program? |
+| 2 | **How are vulnerabilities prioritised?** | Risk-based approach, CVSS scoring, business impact, exploitability, asset criticality. | How is priority determined? |
+| 3 | **What are your remediation SLAs?** | Timeframes by severity, compliance tracking, exception process, escalation. | Are SLAs documented and met? |
+| 4 | **How is software installation restricted?** | Admin rights restrictions, software approval, whitelist management, unauthorized software detection. | Can users install software freely? |
+| 5 | **How is patch compliance monitored?** | Compliance dashboards, non-compliant device handling, reporting, trend tracking. | What is current patch compliance rate? |
+
+---
+
+### Control 8.9: Configuration Management
+
+**CPS 234 Reference:** 15, 18, 21  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are security baselines documented?** | Hardening standards, configuration documentation, CIS benchmarks, custom standards. | What baseline standards are used? |
+| 2 | **How is configuration compliance monitored?** | Configuration scanning, drift detection, compliance reporting, alerting. | Is configuration drift detected? |
+| 3 | **How are configuration changes controlled?** | Change management process, approval requirements, testing, rollback capability. | Are config changes change-managed? |
+| 4 | **Are default configurations removed?** | Default credentials changed, unnecessary services removed, ports closed, verification. | Have defaults been removed? |
+| 5 | **Is Infrastructure as Code used?** | IaC implementation, version control, security scanning (Checkov, tfsec), automated deployment. | Is infrastructure defined as code? |
+
+---
+
+### Control 8.10: Information Deletion
+
+**CPS 234 Reference:** 21c  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your data deletion policy.** | Retention periods, deletion triggers, deletion methods, verification procedures. | When should data be deleted? |
+| 2 | **How is deletion verified as complete?** | Verification procedures, backup consideration, audit trails, certificates. | How do you confirm data is deleted? |
+| 3 | **What secure deletion methods are used?** | Data sanitisation standards (NIST SP 800-88), crypto-shredding, physical destruction. | What deletion methods are approved? |
+| 4 | **How is deletion from backups managed?** | Backup retention alignment, deletion from archives, verification, timing. | Is data deleted from backups too? |
+| 5 | **How are data subject deletion requests handled?** | Request process, scope of deletion, confirmation to requestor, documentation. | Can you demonstrate deletion for a request? |
+
+---
+
+### Control 8.11: Data Masking
+
+**CPS 234 Reference:** 21b, 21c  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Where is data masking applied?** | Masking use cases, covered data types, implementation approach. | What data is masked? |
+| 2 | **Is production data masked in non-production environments?** | Test data management, development data protection, masking verification. | Does test data contain real PII? |
+| 3 | **Are masking rules documented?** | Masking specifications, consistent application, reversibility controls. | Are masking rules auditable? |
+| 4 | **Is masked data validated for usefulness?** | Functional testing, format preservation, referential integrity. | Does masked data work for testing? |
+| 5 | **How is masking compliance verified?** | Verification of masking application, audit of non-production data, compliance checks. | How do you know masking is applied? |
+
+---
+
+### Control 8.12: Data Leakage Prevention
+
+**CPS 234 Reference:** 21a, 21b, 21c  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are DLP controls implemented?** | DLP tools deployed, coverage (endpoint, network, cloud), policies configured. | What DLP solution is used? |
+| 2 | **What data types are monitored?** | Sensitive data patterns, classification integration, custom rules, detection coverage. | What data patterns are detected? |
+| 3 | **How are DLP alerts handled?** | Alert triage, investigation procedures, false positive handling, escalation. | What happens when DLP alerts? |
+| 4 | **Is DLP in prevention or detection mode?** | Blocking capability, user notification, exception process, business impact. | Does DLP block or just detect? |
+| 5 | **Are all exfiltration channels covered?** | Email, web, USB, cloud storage, printing, screenshots. | What channels are monitored? |
+
+---
+
+### Control 8.13: Information Backup
+
+**CPS 234 Reference:** 21b  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your backup policy.** | Scope, frequency, retention periods, testing requirements, offsite storage. | Is backup policy comprehensive? |
+| 2 | **Are backups performed as scheduled?** | Backup monitoring, completion rates, failure handling, alerting. | What is backup success rate? |
+| 3 | **How often are backups tested?** | Restoration testing schedule, test results, time to restore, verification. | When was restoration last tested? |
+| 4 | **How are backups protected?** | Encryption, access controls, offsite/air-gapped storage, immutability. | Are backups encrypted? |
+| 5 | **Is there geographically separate backup storage?** | Offsite location, distance from primary, transfer security, recovery capability. | Where are backups stored? |
+
+---
+
+### Control 8.14: Redundancy of Information Processing Facilities
+
+**CPS 234 Reference:** 21c  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is redundancy implemented for critical systems?** | HA architecture, redundant components, failover capability, availability targets. | What is your availability SLA? |
+| 2 | **Are single points of failure identified?** | SPOF analysis, mitigation measures, residual risk acceptance, monitoring. | What SPOFs exist? |
+| 3 | **How often is failover tested?** | Failover testing schedule, test results, time to failover, recovery verification. | When was failover last tested? |
+| 4 | **Is there geographic redundancy?** | Multi-region deployment, DR site capability, data replication, failover procedures. | Where is your DR site? |
+| 5 | **Are redundancy requirements aligned with business needs?** | Availability requirements, SLA commitments, architecture alignment, gap analysis. | Do you meet business availability needs? |
+
+---
+
+### Control 8.15: Logging
+
+**CPS 234 Reference:** 21a  
+**CPS 230 Reference:** -
+
+**CRITICAL - 12-month retention required**
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **What security events are logged?** | Log coverage: Authentication, authorisation, configuration changes, data access, admin activity. | Are all critical events logged? |
+| 2 | **Do logs contain required information?** | Required fields: User ID, timestamp, event type, source IP, success/failure, affected resource. | Can you identify who did what when? |
+| 3 | **Are logs centrally aggregated?** | SIEM/log platform, collection from all sources, storage architecture, search capability. | Is there a central log repository? |
+| 4 | **How are logs protected from tampering?** | Integrity protection, access controls, immutable storage, tampering detection. | Can logs be modified? |
+| 5 | **What is log retention period?** | Minimum 12 months recommended, storage management, regulatory alignment. | Is 12-month retention achieved? |
+| 6 | **Are clocks synchronised for accurate timestamps?** | NTP configuration, synchronisation verification, time zone consistency. | Are timestamps reliable? |
+
+---
+
+### Control 8.16: Monitoring Activities
+
+**CPS 234 Reference:** 21a, 21b, 21d  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is continuous monitoring implemented?** | Monitoring tools, coverage, 24/7 capability, SOC operations. | Is monitoring 24/7? |
+| 2 | **What alerting rules are configured?** | Alert rules, thresholds, severity levels, tuning process. | What triggers alerts? |
+| 3 | **How are alerts investigated?** | Triage process, investigation procedures, SLAs, escalation. | What is alert response time? |
+| 4 | **Is anomaly detection capability in place?** | Baseline establishment, anomaly detection tools, ML/behavioral analysis. | Can you detect unusual activity? |
+| 5 | **How is monitoring effectiveness reviewed?** | Detection metrics, false positive rates, coverage gaps, improvement actions. | How do you know monitoring works? |
+
+---
+
+### Control 8.17 & 8.17a: Clock Synchronisation
+
+**CPS 234 Reference:** -  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are systems synchronised to approved time sources?** | NTP configuration, approved sources (e.g., government time servers), verification. | What time sources are used? |
+| 2 | **Is synchronisation monitored?** | Drift detection, alerting on failures, verification checks. | How is sync failure detected? |
+| 3 | **Are time zones consistent?** | Standard configuration, UTC storage recommendation, display consistency. | Is there a time zone standard? |
+| 4 | **Is configuration documented?** | Time source identification, configuration records, maintenance procedures. | Is NTP config documented? |
+
+---
+
+### Control 8.18: Use of Privileged Utility Programs
+
+**CPS 234 Reference:** 21a, 21b  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are privileged utilities identified?** | Inventory of utilities, capability assessment, authorised users. | What utilities exist? |
+| 2 | **Is utility access restricted and logged?** | Access restrictions, usage logging, monitoring for misuse. | Is utility use tracked? |
+| 3 | **Are unnecessary utilities removed?** | Utility assessment, removal of unneeded tools, hardening. | Are unneeded utilities removed? |
+| 4 | **Is approval required for utility usage?** | Approval process, justification, time-limited access. | Is utility use approved? |
+| 5 | **Are utility capabilities regularly audited?** | Periodic review, risk evaluation, compensating controls. | When were utilities last reviewed? |
+
+---
+
+### Control 8.19: Installation of Software on Operational Systems
+
+**CPS 234 Reference:** 15  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is software installation controlled?** | Installation restrictions, approval process, authorised installers. | Who can install software? |
+| 2 | **Are installation rights restricted?** | Admin rights removed, whitelisting, application control. | Is software whitelisted? |
+| 3 | **Is software from trusted sources only?** | Approved sources, integrity verification, vendor validation. | How is software source verified? |
+| 4 | **Is software tracked in inventory?** | Software inventory, license management, discovery tools. | Do you know all installed software? |
+| 5 | **How is unauthorised software detected?** | Monitoring, alerting, response process. | Can you detect rogue software? |
+
+---
+
+### Control 8.20-8.22: Network Security (Grouped)
+
+**CPS 234 Reference:** 15, 21a, 21b  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are networks segmented?** | Network segmentation, VLANs, micro-segmentation, zero trust architecture. | How is the network segmented? |
+| 2 | **Are network devices securely configured?** | Hardening standards, default changes, firmware updates. | Are devices hardened? |
+| 3 | **Is traffic filtered?** | Firewall rules, ACLs, deny-by-default, rule review. | Is default deny applied? |
+| 4 | **Are network services secured?** | Unnecessary services removed, secure protocols, service hardening. | Are unnecessary services disabled? |
+| 5 | **Is network monitoring implemented?** | Traffic monitoring, flow logging, IDS/IPS, anomaly detection. | Is network traffic monitored? |
+| 6 | **Are wireless networks secured?** | WPA3/WPA2 Enterprise, guest network segregation, rogue AP detection. | How is WiFi secured? |
+
+---
+
+### Control 8.23: Web Filtering
+
+**CPS 234 Reference:** 21a  
+**CPS 230 Reference:** 11, 12
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is web filtering implemented?** | Filter deployment, coverage, bypass capability. | What web filter is used? |
+| 2 | **What categories are blocked?** | Blocked categories, policy alignment, user notification. | What sites are blocked? |
+| 3 | **How are exceptions handled?** | Request process, approval, time limits, monitoring. | Can users bypass the filter? |
+| 4 | **Is web activity logged?** | Access logging, retention, privacy compliance. | Is browsing logged? |
+| 5 | **Is HTTPS traffic inspected?** | SSL inspection capability, certificate deployment, privacy considerations. | Is encrypted traffic inspected? |
+
+---
+
+### Control 8.24: Use of Cryptography
+
+**CPS 234 Reference:** 21a  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your cryptography policy.** | Approved algorithms, key management requirements, use cases. | Is there a crypto policy? |
+| 2 | **What algorithms are approved?** | Symmetric: AES-256-GCM. Asymmetric: RSA-2048+, ECDSA. Hashing: SHA-256+. | Are approved algorithms current? |
+| 3 | **Is data encrypted at rest and in transit?** | Encryption coverage, TLS version (1.2+ required, 1.3 preferred), database encryption. | Is encryption comprehensive? |
+| 4 | **How are cryptographic keys managed?** | Key generation, storage, rotation schedule, access controls, key destruction. | What is key rotation frequency? |
+| 5 | **Are weak algorithms prohibited?** | Deprecated list (MD5, SHA-1, DES, 3DES, SSL, TLS 1.0/1.1), detection, migration. | Are weak algorithms blocked? |
+
+---
+
+### Control 8.25: Secure Development Lifecycle
+
+**CPS 234 Reference:** 21c  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your secure SDLC documentation.** | SDLC policy, security activities by phase, mandatory gates. | Is security embedded in SDLC? |
+| 2 | **How are security requirements captured?** | Requirements process, threat modeling, security user stories. | Are requirements captured early? |
+| 3 | **Is secure coding training provided?** | Training program, OWASP coverage, technology-specific content. | Are developers trained? |
+| 4 | **Is security code review performed?** | Review process, security checklist, four-eyes principle. | Is code reviewed for security? |
+| 5 | **Is security testing in CI/CD?** | SAST, DAST, dependency scanning, blocking criteria. | Does CI/CD include security testing? |
+| 6 | **Is security sign-off required for deployment?** | Sign-off process, criteria, authority, exception handling. | Can code deploy without security approval? |
+
+---
+
+### Control 8.26: Application Security Requirements
+
+**CPS 234 Reference:** 20  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How are security requirements identified?** | Requirements process, security team input, documentation. | Are requirements captured for all apps? |
+| 2 | **Are requirements risk-based?** | Risk assessment linkage, threat-driven, appropriate to criticality. | Are requirements proportionate to risk? |
+| 3 | **Are regulatory requirements considered?** | Compliance mapping, Privacy Act, CPS 234. | Are regulatory needs captured? |
+| 4 | **Are requirements tracked to completion?** | Traceability, testing against requirements, verification. | Can requirements be traced through development? |
+| 5 | **How are third-party app requirements assessed?** | Vendor assessment, security questionnaires, contract requirements. | Are vendor apps assessed? |
+
+---
+
+### Control 8.27: Secure System Architecture
+
+**CPS 234 Reference:** 15, 18  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are secure architecture principles documented?** | Architecture standards, security patterns, reference architectures. | Are architecture standards documented? |
+| 2 | **Is security architecture review performed?** | Review process, security input, approval requirements. | Are new systems architecturally reviewed? |
+| 3 | **Are defence-in-depth principles applied?** | Layered security, multiple controls, no SPOF. | Is security layered? |
+| 4 | **Are secure design patterns used?** | Input validation, output encoding, authentication patterns. | Are known patterns applied? |
+| 5 | **Is threat modeling performed?** | Methodology (STRIDE, PASTA), timing, documentation. | When is threat modeling done? |
+
+---
+
+### Control 8.28: Secure Coding
+
+**CPS 234 Reference:** 21a, 21b  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are secure coding standards defined?** | Standards document, OWASP alignment, language-specific guidance. | Are coding standards documented? |
+| 2 | **Is static analysis performed?** | SAST tools, CI/CD integration, finding remediation. | Is SAST in the pipeline? |
+| 3 | **Are OWASP Top 10 vulnerabilities addressed?** | Awareness, coding practices, validation requirements. | Are common vulnerabilities prevented? |
+| 4 | **Is code peer reviewed?** | Review process, security consideration, reviewer qualification. | Is all code reviewed? |
+| 5 | **How are secrets managed?** | No hardcoded secrets, secrets management tools, secret scanning. | Are secrets in code detected? |
+
+---
+
+### Control 8.29: Security Testing in Development
+
+**CPS 234 Reference:** 27, 31  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Is security testing defined in SDLC?** | Testing requirements, test types, coverage expectations. | Is security testing mandatory? |
+| 2 | **Is DAST performed?** | DAST tools, scan frequency, finding remediation. | Are running apps tested? |
+| 3 | **Is penetration testing performed?** | Frequency, scope, qualified testers, finding tracking. | When was last pen test? |
+| 4 | **Are findings remediated before release?** | SLAs, blocking criteria, exception process. | Can code release with findings? |
+| 5 | **Does acceptance testing include security?** | Security criteria, testing evidence, sign-off. | Is security part of UAT? |
+
+---
+
+### Control 8.30: Outsourced Development
+
+**CPS 234 Reference:** 22  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are security requirements in development contracts?** | Contract requirements, security standards, deliverable criteria. | Are requirements contractual? |
+| 2 | **How is outsourced development monitored?** | Progress reviews, security checkpoints, code review rights. | Is security oversight exercised? |
+| 3 | **Is delivered code security tested?** | Testing requirements, internal review, acceptance criteria. | Is vendor code tested by you? |
+| 4 | **Are IP rights protected?** | Contract clauses, code ownership, confidentiality. | Who owns the code? |
+| 5 | **How are security defects handled?** | Defect resolution, warranty, remediation SLAs. | Are security fixes covered in warranty? |
+
+---
+
+### Control 8.31: Separation of Environments
+
+**CPS 234 Reference:** 15, 16  
+**CPS 230 Reference:** 50
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are dev/test/prod environments separated?** | Environment segregation, separate infrastructure, access controls. | Are environments truly separate? |
+| 2 | **Is access appropriately restricted per environment?** | Different access rights, production access limited, justification required. | Who can access production? |
+| 3 | **Is production data protected in non-production?** | Data masking, no prod data in dev/test, synthetic data use. | Is real data in test environments? |
+| 4 | **How is code promoted between environments?** | Promotion process, approvals, deployment pipeline. | Is code promotion controlled? |
+| 5 | **Are configuration differences documented?** | Environment configuration management, parity tracking. | Are environment configs documented? |
+
+---
+
+### Control 8.32: Change Management
+
+**CPS 234 Reference:** 15, 18  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Provide your change management process.** | Change policy, process documentation, CAB structure. | Is there a formal change process? |
+| 2 | **Are changes assessed for security impact?** | Security impact assessment, risk evaluation, approval requirements. | Is security impact always assessed? |
+| 3 | **Is testing performed before deployment?** | Test requirements, environments, security testing inclusion. | Is testing mandatory? |
+| 4 | **Are changes approved before implementation?** | Approval workflow, authorised approvers, emergency process. | Is approval enforced? |
+| 5 | **Is there rollback capability?** | Rollback procedures, testing, backup before change. | Can changes be rolled back? |
+| 6 | **Are changes documented and auditable?** | Change records, audit trail, post-implementation review. | Can changes be audited? |
+
+---
+
+### Control 8.33: Test Information
+
+**CPS 234 Reference:** 27a, 27b  
+**CPS 230 Reference:** -
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **How is test data managed?** | Test data policy, data generation, production data restrictions. | Is test data managed? |
+| 2 | **Is production data masked for testing?** | Masking procedures, anonymisation, verification. | Is masking applied? |
+| 3 | **Is test data protected appropriately?** | Access controls, encryption, disposal. | Is test data secured? |
+| 4 | **How is CPS 234 control testing planned?** | Testing program, coverage, evidence collection. | Is control testing planned? |
+| 5 | **Are test environments secured?** | Environment security, access controls, data protection. | Are test environments secured? |
+
+---
+
+### Control 8.34: Protection During Audit Testing
+
+**CPS 234 Reference:** 27a, 27b, 27d, 27e  
+**CPS 230 Reference:** 11b, 33, 35, 39, 42, 43, 44
+
+| ID | Question | Evidence Guidance | Auditor Focus |
+|----|----------|-------------------|---------------|
+| 1 | **Are audit tests planned and agreed?** | Audit planning, scope agreement, timing coordination. | Is audit testing coordinated? |
+| 2 | **Is auditor access controlled?** | Access provisioning, monitoring, time-limited access. | Is auditor access logged? |
+| 3 | **Are audit tools approved?** | Tool assessment, approval process, security review. | Are audit tools vetted? |
+| 4 | **How is production impact minimised?** | Testing windows, read-only access, non-production use. | Is production protected during audits? |
+| 5 | **Is audit evidence protected?** | Evidence handling, confidentiality, secure transmission. | Is audit evidence secured? |
+| 6 | **Are CPS 234/230 audit requirements addressed?** | Regulatory preparation, evidence availability, compliance demonstration. | Are regulatory audits prepared for? |
+
+---
+
+## Appendix A: Common Nonconformity Summary
+
+| Control Area | Common Nonconformities |
+|--------------|----------------------|
+| RQ6 Planning | SoA missing controls; risk methodology inconsistent; no residual risk acceptance |
+| RQ9 Performance Evaluation | Incomplete audit coverage; auditor independence issues; management review gaps |
+| 5.23 Cloud Services | No exit strategy; shared responsibility undocumented; CSPM not deployed |
+| 6.3 Training | Completion below 95%; no role-specific training; high phishing click rates |
+| 8.15 Logging | Retention below 12 months; log integrity not protected; incomplete coverage |
+| 8.25 Secure Development | Security not embedded in SDLC; no SAST in CI/CD; threat modeling absent |
+
+---
+
+## Appendix B: CPS 234 Cross-Reference
+
+| CPS 234 Paragraph | ISO 27001 Controls |
+|-------------------|-------------------|
+| 13 (Roles) | 5.1, 5.2, 5.4 |
+| 14 (Board oversight) | 5.2, 5.4 |
+| 15 (Capability) | RQ4, RQ6, 5.3, 8.1-8.34 |
+| 17 (Context) | RQ4, 5.6, 5.7 |
+| 18 (Policy) | RQ6, 5.1, 5.31, 8.27 |
+| 19-21 (Third parties) | 5.19-5.23 |
+| 23-25 (Incidents) | 5.24-5.28, 6.8 |
+| 26 (Improvement) | RQ10 |
+| 27 (Testing) | 8.29, 8.33, 8.34 |
+| 30-34 (Assurance) | RQ9, 5.35, 5.36 |
+| 35-36 (Notification) | 5.5 |
+
+---
+
+## Document Information
+
+
+**Usage Notes:**
+- Questions phrased to elicit specific evidence, not yes/no answers
+- "Auditor Focus" column highlights key areas of scrutiny
+- CPS 234/230 references indicate Australian regulatory alignment
+- Common Nonconformities sections highlight frequent audit failures
+
+**For Database Import:**
+This document can be converted to JSON format matching the `controls.ai_questionnaire` schema in the ISMS Tracker application.

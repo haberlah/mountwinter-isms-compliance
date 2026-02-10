@@ -71,7 +71,7 @@ function App() {
                   <PageTitle />
                 </div>
               </header>
-              <main className="flex-1 overflow-y-auto p-6 bg-background">
+              <main className="flex-1 min-h-0 overflow-y-auto p-6 bg-background">
                 <Router />
               </main>
             </div>

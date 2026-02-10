@@ -1,12 +1,13 @@
-import { 
-  users, controlCategories, controls, organisationControls, testRuns, aiInteractions, organisationProfile,
-  type User, type InsertUser, 
+import {
+  users, controlCategories, controls, organisationControls, testRuns, aiInteractions, organisationProfile, evidenceLinks,
+  type User, type InsertUser,
   type ControlCategory, type InsertControlCategory,
   type Control, type InsertControl,
   type OrganisationControl, type InsertOrganisationControl,
   type TestRun, type InsertTestRun,
   type AiInteraction, type InsertAiInteraction,
   type OrganisationProfile, type InsertOrganisationProfile,
+  type EvidenceLink, type InsertEvidenceLink,
   type DashboardStats, type ControlWithDetails, type TestRunWithDetails,
   type ControlsStats, type ControlWithLatestTest, type ControlApplicability
 } from "@shared/schema";
@@ -60,6 +61,12 @@ export interface IStorage {
   // Control Applicability
   getControlsApplicability(): Promise<ControlApplicability[]>;
   updateControlsApplicability(updates: { controlId: number; isApplicable: boolean }[]): Promise<number>;
+
+  // Evidence Links
+  getEvidenceLinksByOrgControl(orgControlId: number, questionId?: number): Promise<EvidenceLink[]>;
+  getEvidenceLinksByTestRun(testRunId: number): Promise<EvidenceLink[]>;
+  createEvidenceLink(link: InsertEvidenceLink): Promise<EvidenceLink>;
+  deleteEvidenceLink(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -141,11 +148,28 @@ export class DatabaseStorage implements IStorage {
     return result.map((row) => {
       const orgControl = row.organisation_controls;
       const latestTestRun = orgControl ? latestTestByOrgControl.get(orgControl.id) || null : null;
+
+      // Compute questionnaire progress
+      let questionnaireProgress: { total: number; answered: number; percentage: number } | undefined;
+      const questionnaire = row.controls.aiQuestionnaire as any;
+      if (questionnaire?.questions?.length) {
+        const total = questionnaire.questions.length;
+        const responses = orgControl?.implementationResponses as any;
+        let answered = 0;
+        if (responses?.responses) {
+          for (const r of responses.responses) {
+            if (r.response_text?.trim()) answered++;
+          }
+        }
+        questionnaireProgress = { total, answered, percentage: Math.round((answered / total) * 100) };
+      }
+
       return {
         ...row.controls,
         category: row.control_categories,
         organisationControl: orgControl,
         latestTestRun,
+        questionnaireProgress,
       };
     });
   }
@@ -206,14 +230,20 @@ export class DatabaseStorage implements IStorage {
     const row = result[0];
     const orgControl = row.organisation_controls;
 
-    let recentTestRuns: TestRun[] = [];
+    let recentTestRuns: any[] = [];
     if (orgControl) {
-      recentTestRuns = await db
+      const runs = await db
         .select()
         .from(testRuns)
         .where(eq(testRuns.organisationControlId, orgControl.id))
         .orderBy(desc(testRuns.testDate))
         .limit(10);
+
+      // Attach evidence links to each test run
+      for (const run of runs) {
+        const links = await this.getEvidenceLinksByTestRun(run.id);
+        recentTestRuns.push({ ...run, evidenceLinks: links });
+      }
     }
 
     return {
@@ -582,20 +612,51 @@ export class DatabaseStorage implements IStorage {
 
   async updateControlsApplicability(updates: { controlId: number; isApplicable: boolean }[]): Promise<number> {
     let updatedCount = 0;
-    
+
     for (const update of updates) {
       const result = await db
         .update(organisationControls)
         .set({ isApplicable: update.isApplicable })
         .where(eq(organisationControls.controlId, update.controlId))
         .returning();
-      
+
       if (result.length > 0) {
         updatedCount++;
       }
     }
-    
+
     return updatedCount;
+  }
+
+  // Evidence Links
+  async getEvidenceLinksByOrgControl(orgControlId: number, questionId?: number): Promise<EvidenceLink[]> {
+    const conditions = [eq(evidenceLinks.organisationControlId, orgControlId)];
+    if (questionId !== undefined) {
+      conditions.push(eq(evidenceLinks.questionId, questionId));
+    }
+    return db
+      .select()
+      .from(evidenceLinks)
+      .where(and(...conditions))
+      .orderBy(desc(evidenceLinks.createdAt));
+  }
+
+  async getEvidenceLinksByTestRun(testRunId: number): Promise<EvidenceLink[]> {
+    return db
+      .select()
+      .from(evidenceLinks)
+      .where(eq(evidenceLinks.testRunId, testRunId))
+      .orderBy(desc(evidenceLinks.createdAt));
+  }
+
+  async createEvidenceLink(link: InsertEvidenceLink): Promise<EvidenceLink> {
+    const [el] = await db.insert(evidenceLinks).values(link).returning();
+    return el;
+  }
+
+  async deleteEvidenceLink(id: number): Promise<boolean> {
+    const result = await db.delete(evidenceLinks).where(eq(evidenceLinks.id, id)).returning();
+    return result.length > 0;
   }
 }
 

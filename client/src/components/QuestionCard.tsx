@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { ChevronDown, ChevronRight, Plus, Check, Loader2, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronRight, Check, Loader2, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { SeverityBadge } from "./SeverityBadge";
+import { EvidenceLinkManager } from "./EvidenceLinkManager";
 import type { OntologyQuestion, Persona, QuestionResponse } from "@shared/schema";
 
 interface QuestionCardProps {
@@ -13,7 +13,7 @@ interface QuestionCardProps {
   response?: QuestionResponse;
   persona: Persona;
   onResponseChange: (questionId: number, responseText: string) => void;
-  onEvidenceAdd: (questionId: number, filename: string) => void;
+  organisationControlId?: number;
   saveStatus: "idle" | "saving" | "saved" | "error";
 }
 
@@ -98,11 +98,10 @@ export function QuestionCard({
   response,
   persona,
   onResponseChange,
-  onEvidenceAdd,
+  organisationControlId,
   saveStatus,
 }: QuestionCardProps) {
   const [responseText, setResponseText] = useState(response?.response_text || "");
-  const [evidenceInput, setEvidenceInput] = useState("");
 
   const visibleFields = getVisibleFields(persona);
 
@@ -117,13 +116,6 @@ export function QuestionCard({
     },
     [question.question_id, onResponseChange]
   );
-
-  const handleAddEvidence = () => {
-    if (evidenceInput.trim()) {
-      onEvidenceAdd(question.question_id, evidenceInput.trim());
-      setEvidenceInput("");
-    }
-  };
 
   return (
     <Card className="border-zinc-200 dark:border-zinc-700" data-testid={`card-question-${question.question_id}`}>
@@ -216,42 +208,19 @@ export function QuestionCard({
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 flex-1">
-              <span className="text-xs text-muted-foreground">Evidence:</span>
-              {response?.evidence_references && response.evidence_references.length > 0 && (
-                <div className="flex gap-1 flex-wrap">
-                  {response.evidence_references.map((ref, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded"
-                      data-testid={`tag-evidence-${question.question_id}-${i}`}
-                    >
-                      {ref}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-1">
-                <Input
-                  value={evidenceInput}
-                  onChange={(e) => setEvidenceInput(e.target.value)}
-                  placeholder="filename.pdf"
-                  className="h-7 text-xs w-32"
-                  onKeyDown={(e) => e.key === "Enter" && handleAddEvidence()}
-                  data-testid={`input-evidence-${question.question_id}`}
+            <div className="flex-1">
+              {organisationControlId ? (
+                <EvidenceLinkManager
+                  mode="manage"
+                  organisationControlId={organisationControlId}
+                  questionId={question.question_id}
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleAddEvidence}
-                  data-testid={`button-add-evidence-${question.question_id}`}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">Evidence: save control first</span>
+              )}
             </div>
 
-            <div className="flex items-center gap-1 text-xs" data-testid={`status-save-${question.question_id}`}>
+            <div className="flex items-center gap-1 text-xs shrink-0 ml-2" data-testid={`status-save-${question.question_id}`}>
               {saveStatus === "saving" && (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -267,9 +236,7 @@ export function QuestionCard({
               {saveStatus === "error" && (
                 <span className="text-destructive">Error saving</span>
               )}
-              {saveStatus === "idle" && responseText && (
-                <span className="text-amber-500">Unsaved</span>
-              )}
+              {saveStatus === "idle" && null}
             </div>
           </div>
         </div>

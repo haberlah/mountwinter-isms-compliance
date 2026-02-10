@@ -21,23 +21,31 @@ import { QuestionCard } from "@/components/QuestionCard";
 import { ProgressSection } from "@/components/ProgressSection";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { 
-  ArrowLeft, 
-  Brain, 
-  ClipboardCheck, 
+import {
+  ArrowLeft,
+  Brain,
+  ClipboardCheck,
   History,
   AlertTriangle,
   Loader2,
   FileText,
-  Save
+  Save,
+  Link as LinkIcon,
+  Shield,
+  Table2,
+  File
 } from "lucide-react";
-import type { Control, ControlCategory, OrganisationControl, TestRun, Persona, OntologyQuestion, ImplementationResponses, QuestionResponse, ControlQuestionnaire } from "@shared/schema";
+import type { Control, ControlCategory, OrganisationControl, TestRun, EvidenceLink, Persona, OntologyQuestion, ImplementationResponses, QuestionResponse, ControlQuestionnaire } from "@shared/schema";
 import { format } from "date-fns";
+
+type TestRunWithEvidence = TestRun & {
+  evidenceLinks?: EvidenceLink[];
+};
 
 type ControlWithDetails = Control & {
   category: ControlCategory;
   organisationControl: OrganisationControl | null;
-  recentTestRuns: TestRun[];
+  recentTestRuns: TestRunWithEvidence[];
 };
 
 function useDebouncedCallback<T extends (...args: any[]) => void>(
@@ -227,31 +235,59 @@ export default function ControlDetail() {
                         .map((run) => (
                         <div
                           key={run.id}
-                          className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
+                          className="p-4 rounded-lg border bg-muted/30 space-y-2"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="flex flex-col">
-                              <span className="font-medium text-sm">
-                                {format(new Date(run.testDate), "MMM d, yyyy")}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {format(new Date(run.testDate), "h:mm a")}
-                              </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  {format(new Date(run.testDate), "MMM d, yyyy")}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(run.testDate), "h:mm a")}
+                                </span>
+                              </div>
+                              {run.comments && (
+                                <p className="text-sm text-muted-foreground line-clamp-1 max-w-md">
+                                  {run.comments}
+                                </p>
+                              )}
                             </div>
-                            {run.comments && (
-                              <p className="text-sm text-muted-foreground line-clamp-1 max-w-md">
-                                {run.comments}
-                              </p>
-                            )}
+                            <div className="flex items-center gap-3">
+                              {run.aiConfidence && (
+                                <span className="text-xs text-muted-foreground">
+                                  AI: {(run.aiConfidence * 100).toFixed(0)}%
+                                </span>
+                              )}
+                              <StatusBadge status={run.status} size="sm" />
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {run.aiConfidence && (
-                              <span className="text-xs text-muted-foreground">
-                                AI: {(run.aiConfidence * 100).toFixed(0)}%
-                              </span>
-                            )}
-                            <StatusBadge status={run.status} size="sm" />
-                          </div>
+                          {run.evidenceLinks && run.evidenceLinks.length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap pt-1">
+                              <span className="text-xs text-muted-foreground">Evidence:</span>
+                              {run.evidenceLinks.map((ev) => {
+                                const TypeIcon = ev.evidenceType === "POLICY" ? Shield
+                                  : ev.evidenceType === "MATRIX" ? Table2
+                                  : ev.evidenceType === "REGISTER" ? ClipboardCheck
+                                  : ev.evidenceType === "DOCUMENT" ? File
+                                  : FileText;
+                                const chip = (
+                                  <span key={ev.id} className="inline-flex items-center gap-1 text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
+                                    <TypeIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                                    <span className="truncate max-w-[150px]">{ev.title}</span>
+                                    {ev.url && <LinkIcon className="h-2.5 w-2.5 text-muted-foreground shrink-0" />}
+                                  </span>
+                                );
+                                return ev.url ? (
+                                  <a key={ev.id} href={ev.url} target="_blank" rel="noopener noreferrer" className="no-underline">
+                                    {chip}
+                                  </a>
+                                ) : (
+                                  chip
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -337,7 +373,7 @@ export default function ControlDetail() {
           </Tabs>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-0 lg:self-start">
           <Card>
             <CardHeader>
               <CardTitle>Control Settings</CardTitle>
@@ -399,14 +435,16 @@ function QuestionnaireTab({
   );
   const [saveStatuses, setSaveStatuses] = useState<Record<number, "idle" | "saving" | "saved" | "error">>({});
   const [localResponses, setLocalResponses] = useState<Record<number, QuestionResponse>>({});
+  const initialised = useRef(false);
 
   useEffect(() => {
-    if (orgControl?.implementationResponses?.responses) {
+    if (!initialised.current && orgControl?.implementationResponses?.responses) {
       const responseMap: Record<number, QuestionResponse> = {};
       for (const r of orgControl.implementationResponses.responses) {
         responseMap[r.question_id] = r;
       }
       setLocalResponses(responseMap);
+      initialised.current = true;
     }
   }, [orgControl?.implementationResponses]);
 
@@ -493,37 +531,9 @@ function QuestionnaireTab({
     },
     onSuccess: (_, variables) => {
       setSaveStatuses((prev) => ({ ...prev, [variables.question_id]: "saved" }));
-      setTimeout(() => {
-        setSaveStatuses((prev) => ({ ...prev, [variables.question_id]: "idle" }));
-      }, 2000);
-      queryClient.invalidateQueries({ queryKey: ["/api/controls", control.controlNumber] });
     },
     onError: (_, variables) => {
       setSaveStatuses((prev) => ({ ...prev, [variables.question_id]: "error" }));
-    },
-  });
-
-  const evidenceMutation = useMutation({
-    mutationFn: async (data: { questionId: number; filename: string }) => {
-      return apiRequest(
-        "PATCH", 
-        `/api/organisation-controls/${control.id}/response/${data.questionId}/evidence`,
-        { filename: data.filename }
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/controls", control.controlNumber] });
-      toast({
-        title: "Evidence Added",
-        description: "Evidence reference has been saved.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to add evidence reference.",
-        variant: "destructive",
-      });
     },
   });
 
@@ -565,25 +575,6 @@ function QuestionnaireTab({
     [debouncedSave]
   );
 
-  const handleEvidenceAdd = useCallback(
-    (questionId: number, filename: string) => {
-      evidenceMutation.mutate({ questionId, filename });
-      
-      setLocalResponses((prev) => ({
-        ...prev,
-        [questionId]: {
-          ...prev[questionId],
-          question_id: questionId,
-          response_text: prev[questionId]?.response_text || "",
-          evidence_references: [...(prev[questionId]?.evidence_references || []), filename],
-          last_updated: new Date().toISOString(),
-          answered_by_user_id: 1,
-        },
-      }));
-    },
-    [evidenceMutation]
-  );
-
   const handlePersonaChange = (persona: PersonaOrAll) => {
     setSelectedPersona(persona);
     // Only save to DB if it's not "All" (All is a view mode, not a persona preference)
@@ -593,14 +584,27 @@ function QuestionnaireTab({
   };
 
   const handleSaveAll = () => {
+    const idsToSave: number[] = [];
     for (const [questionId, response] of Object.entries(localResponses)) {
       if (response.response_text?.trim()) {
-        responseMutation.mutate({
-          question_id: Number(questionId),
-          response_text: response.response_text,
-          evidence_references: response.evidence_references,
-        });
+        idsToSave.push(Number(questionId));
       }
+    }
+    // Set all to "saving" upfront
+    setSaveStatuses((prev) => {
+      const next = { ...prev };
+      for (const id of idsToSave) {
+        next[id] = "saving";
+      }
+      return next;
+    });
+    for (const questionId of idsToSave) {
+      const response = localResponses[questionId];
+      responseMutation.mutate({
+        question_id: questionId,
+        response_text: response.response_text,
+        evidence_references: response.evidence_references,
+      });
     }
     toast({
       title: "Saving All",
@@ -623,7 +627,7 @@ function QuestionnaireTab({
             response={localResponses[q.question_id]}
             persona={displayPersona}
             onResponseChange={handleResponseChange}
-            onEvidenceAdd={handleEvidenceAdd}
+            organisationControlId={orgControl?.id}
             saveStatus={saveStatuses[q.question_id] || "idle"}
           />
         );

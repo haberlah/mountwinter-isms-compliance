@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { Search, ChevronUp, ChevronDown, CheckCircle, XCircle, AlertCircle, Clock, User } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, CheckCircle, XCircle, AlertCircle, Clock, User, Minus } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,9 +22,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import type { ControlWithLatestTest, ControlsStats, ControlCategory } from "@shared/schema";
 
-type SortField = "controlNumber" | "name" | "category" | "status" | "frequency" | "owner" | "lastTested";
+type SortField = "controlNumber" | "name" | "category" | "status" | "responses" | "frequency" | "owner" | "lastTested";
 type SortDirection = "asc" | "desc";
 
 function getStatusInfo(status: string | null | undefined) {
@@ -175,6 +176,11 @@ export default function Controls() {
           const statusB = b.latestTestRun?.status || "zzz";
           comparison = statusA.localeCompare(statusB);
           break;
+        case "responses":
+          const progA = a.questionnaireProgress?.percentage ?? -1;
+          const progB = b.questionnaireProgress?.percentage ?? -1;
+          comparison = progA - progB;
+          break;
         case "frequency":
           const freqA = a.defaultFrequency || "Annual";
           const freqB = b.defaultFrequency || "Annual";
@@ -311,8 +317,18 @@ export default function Controls() {
                     <SortIcon field="status" sortField={sortField} sortDirection={sortDirection} />
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer select-none w-[100px]" 
+                <TableHead
+                  className="cursor-pointer select-none w-[130px]"
+                  onClick={() => handleSort("responses")}
+                  data-testid="th-responses"
+                >
+                  <div className="flex items-center gap-1">
+                    Responses
+                    <SortIcon field="responses" sortField={sortField} sortDirection={sortDirection} />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none w-[100px]"
                   onClick={() => handleSort("frequency")}
                   data-testid="th-frequency"
                 >
@@ -351,6 +367,7 @@ export default function Controls() {
                     <TableCell><Skeleton className="h-5 w-full" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
@@ -358,7 +375,7 @@ export default function Controls() {
                 ))
               ) : filteredAndSortedControls.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {controls?.length === 0 ? "No controls found" : "No controls match your filters"}
                   </TableCell>
                 </TableRow>
@@ -393,6 +410,27 @@ export default function Controls() {
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={control.latestTestRun?.status} />
+                    </TableCell>
+                    <TableCell>
+                      {control.questionnaireProgress ? (
+                        <div className="flex items-center gap-2">
+                          <Progress
+                            value={control.questionnaireProgress.percentage}
+                            className={`w-16 h-2 ${
+                              control.questionnaireProgress.percentage === 100
+                                ? "[&>div]:bg-green-600"
+                                : control.questionnaireProgress.percentage > 0
+                                ? "[&>div]:bg-amber-500"
+                                : ""
+                            }`}
+                          />
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {control.questionnaireProgress.answered}/{control.questionnaireProgress.total}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground"><Minus className="h-3 w-3" /></span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <span className="text-sm" data-testid={`text-control-frequency-${control.id}`}>

@@ -284,7 +284,7 @@ export async function registerRoutes(
     try {
       const user = await storage.getOrCreateDefaultUser();
 
-      const { organisationControlId, status, comments, aiAnalysis, aiSuggestedStatus, aiConfidence, aiContextScope } = req.body;
+      const { organisationControlId, status, comments, aiAnalysis, aiSuggestedStatus, aiConfidence, aiContextScope, evidenceLinks: evidenceLinksData } = req.body;
 
       if (!organisationControlId) {
         return res.status(400).json({ error: "Organisation control ID is required" });
@@ -304,6 +304,21 @@ export async function registerRoutes(
         aiConfidence: aiConfidence || null,
         aiContextScope: aiContextScope || null,
       });
+
+      // Persist any evidence links attached to this test run
+      if (Array.isArray(evidenceLinksData) && evidenceLinksData.length > 0) {
+        for (const ev of evidenceLinksData) {
+          await storage.createEvidenceLink({
+            testRunId: testRun.id,
+            organisationControlId,
+            title: ev.title,
+            url: ev.url || null,
+            evidenceType: ev.evidenceType || null,
+            description: ev.description || null,
+            addedByUserId: user.id,
+          });
+        }
+      }
 
       res.status(201).json(testRun);
     } catch (error) {
@@ -512,6 +527,86 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error adding evidence:", error);
       res.status(500).json({ error: "Failed to add evidence" });
+    }
+  });
+
+  // Evidence Links
+  app.get("/api/organisation-controls/:controlId/evidence-links", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      const orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        return res.status(404).json({ error: "Organisation control not found" });
+      }
+
+      const questionId = req.query.questionId ? parseInt(req.query.questionId as string) : undefined;
+      const links = await storage.getEvidenceLinksByOrgControl(orgControl.id, questionId);
+      res.json(links);
+    } catch (error) {
+      console.error("Error fetching evidence links:", error);
+      res.status(500).json({ error: "Failed to fetch evidence links" });
+    }
+  });
+
+  app.post("/api/organisation-controls/:controlId/evidence-links", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      let orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        orgControl = await storage.createOrganisationControl({
+          controlId,
+          isApplicable: true,
+        });
+      }
+
+      const { title, url, evidenceType, description, questionId } = req.body;
+      if (!title || typeof title !== "string") {
+        return res.status(400).json({ error: "Title is required" });
+      }
+
+      const user = await storage.getOrCreateDefaultUser();
+      const link = await storage.createEvidenceLink({
+        organisationControlId: orgControl.id,
+        questionId: questionId ?? null,
+        testRunId: null,
+        title,
+        url: url || null,
+        evidenceType: evidenceType || null,
+        description: description || null,
+        addedByUserId: user.id,
+      });
+
+      res.status(201).json(link);
+    } catch (error) {
+      console.error("Error creating evidence link:", error);
+      res.status(500).json({ error: "Failed to create evidence link" });
+    }
+  });
+
+  app.delete("/api/evidence-links/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid evidence link ID" });
+      }
+
+      const deleted = await storage.deleteEvidenceLink(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Evidence link not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting evidence link:", error);
+      res.status(500).json({ error: "Failed to delete evidence link" });
     }
   });
 
