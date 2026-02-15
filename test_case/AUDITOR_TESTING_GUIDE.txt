@@ -1,0 +1,637 @@
+================================================================================
+ISO 27001 COMPLIANCE AUDIT - TESTING GUIDE
+HorseInsure Pty Ltd Test Case Documents
+================================================================================
+
+OVERVIEW:
+These 5 documents are designed to test auditor competency in identifying control
+gaps, incomplete assessments, and unresolved security findings. Each document
+contains realistic business context but includes deliberate gaps for testing.
+
+================================================================================
+DOCUMENT 1: SSA-001_Supplier_Assessment_CloudStable.pdf
+================================================================================
+
+DOCUMENT TYPE: Supplier Security Assessment (COMPREHENSIVE - GOOD EXAMPLE)
+ASSESSMENT DATE: 15 May 2025
+SUPPLIER: CloudStable Pty Ltd (IaaS provider - hosts EquiClaim & EquiPolicy)
+ASSESSOR: Angela Torres, Compliance Manager
+RISK RATING: LOW
+RECOMMENDATION: APPROVED FOR CONTINUED USE
+
+AUDIT TESTING OBJECTIVES:
+1. Verify supplier assessment completeness
+2. Check evidence evaluation procedures
+3. Validate certification verification process
+4. Review risk rating justification
+
+KEY AREAS TO VERIFY:
+✓ Data Handling & Protection
+  - Evidence: ISO 27001 cert reviewed, AES-256 encryption confirmed
+  - TLS 1.2+ in transit encryption verified
+  - Backup testing quarterly documented
+  - Status: COMPLIANT
+
+✓ Access Controls
+  - Evidence: Azure AD configuration reviewed
+  - MFA enforced for admin access
+  - Semi-annual access reviews conducted
+  - Status: COMPLIANT
+
+✓ Incident Notification
+  - Evidence: SLA reviewed and contact matrix verified
+  - 24-hour notification commitment documented
+  - Escalation procedures included
+  - Status: COMPLIANT
+
+✓ Business Continuity & DR
+  - Evidence: DR test report reviewed (March 2025)
+  - RTO: 4 hours, RPO: 1 hour
+  - Geo-redundant data centers (Sydney/Melbourne)
+  - Status: COMPLIANT
+
+✓ Compliance Certifications
+  - Evidence: Certificates validated
+  - ISO 27001:2022 (current)
+  - SOC 2 Type II (audited Jan 2025)
+  - IRAP Moderate (ACSC approved)
+  - Audit reports reviewed
+  - Status: COMPLIANT
+
+AUDIT QUESTIONS:
+Q1: Is the assessment thorough and evidence-based? ✓ YES
+Q2: Are all critical areas covered? ✓ YES
+Q3: Is the risk rating justified? ✓ YES (LOW justified by compliance evidence)
+Q4: Are certification validations documented? ✓ YES
+Q5: Does the recommendation match the assessment? ✓ YES (APPROVED appropriate)
+
+EXPECTED AUDITOR CONCLUSION:
+This is a best-practice supplier assessment. Assessment procedures are
+comprehensive, evidence-based, and documented. The LOW risk rating is well-
+supported. Recommendation to approve is appropriate.
+
+================================================================================
+DOCUMENT 2: SSA-002_Supplier_Assessment_DataVault.pdf
+================================================================================
+
+DOCUMENT TYPE: Supplier Security Assessment (INCOMPLETE - POOR EXAMPLE)
+ASSESSMENT DATE: 22 May 2025
+SUPPLIER: DataVault Solutions (offsite backup provider)
+ASSESSOR: Marcus Lee, IT Security Analyst
+RISK RATING: MEDIUM
+RECOMMENDATION: APPROVED (despite gaps)
+
+AUDIT TESTING OBJECTIVES:
+1. Identify incomplete assessments
+2. Detect inadequate evidence collection
+3. Recognize missing control reviews
+4. Test auditor's ability to challenge weak approvals
+
+CRITICAL GAPS DELIBERATELY INCLUDED:
+
+GAP #1 - Incomplete Control Assessment
+  Area: Data Handling
+  Finding: "Backup encryption applied. N/A"
+  Problem: Vague statement, no encryption strength verified, "N/A" unexplained
+  Expected Action: Should specify AES-256 or equivalent, document encryption at rest/transit
+
+GAP #2 - Incomplete Control Assessment
+  Area: Access Controls
+  Finding: "Username/password based access. N/A"
+  Problem: No mention of MFA, no access control procedures documented
+  Expected Action: Should require MFA, document password policy and access review procedures
+
+GAP #3 - Missing Procedure Review
+  Area: Incident Notification
+  Finding: "Not reviewed during assessment"
+  Problem: Critical control not assessed at all
+  Expected Action: MUST be completed before approval (24h notification SLA required)
+
+GAP #4 - Assumed Controls
+  Area: Business Continuity
+  Finding: "Assumed adequate based on service name"
+  Problem: No evidence, no RTO/RPO defined, no backup testing documented
+  Expected Action: Require backup testing records, RTO/RPO SLA documentation
+
+GAP #5 - Missing Certification Review
+  Area: Compliance Certifications
+  Finding: "N/A"
+  Problem: No certifications reviewed, no evidence validation
+  Expected Action: Require ISO 27001, SOC 2, or equivalent certifications
+
+WEAK JUSTIFICATION:
+  Risk Rating: MEDIUM (stated)
+  Justification: "Some backup controls in place but comprehensive assessment not completed"
+  Problem: Self-acknowledges assessment incompleteness, yet still approves
+  Red Flag: Why approve supplier with incomplete assessment?
+
+AUDIT QUESTIONS:
+Q1: Is the assessment thorough? ✗ NO (acknowledged as incomplete)
+Q2: Are all critical areas covered? ✗ NO (incident notification not reviewed)
+Q3: Are certification validations documented? ✗ NO (marked N/A)
+Q4: Is the risk rating justified? ~ UNCLEAR (multiple gaps unexplained)
+Q5: Should this supplier be approved with these gaps? ✗ NO
+
+EXPECTED AUDITOR CONCLUSIONS:
+RED FLAGS IDENTIFIED:
+- Incident notification control not assessed - critical gap
+- Certifications marked N/A without investigation
+- Risk rating MEDIUM but gaps unexplained
+- Recommendation to APPROVE is inappropriate given gaps
+- Assessment appears rushed/incomplete
+
+REMEDIATION REQUIRED:
+- Complete incident notification review
+- Verify certifications (ISO 27001, SOC 2, or equivalent)
+- Document RTO/RPO SLA and backup testing evidence
+- Reassess access control procedures
+- Recalculate risk rating based on complete assessment
+- Resubmit for approval decision
+
+AUDITOR TEST OBJECTIVE:
+Can auditor identify that this assessment is inadequate and
+should not be approved in current form? ✓ TEST COMPETENCY
+
+================================================================================
+DOCUMENT 3: PEN-001_Penetration_Test_Report_Aug2025.pdf
+================================================================================
+
+DOCUMENT TYPE: Penetration Test Report (PROFESSIONAL BUT WITH UNRESOLVED FINDINGS)
+TESTING FIRM: CyberShield Consulting Pty Ltd
+TEST PERIOD: 5-9 August 2025
+REPORT DATE: 18 August 2025
+
+AUDIT TESTING OBJECTIVES:
+1. Verify vulnerability management process
+2. Check remediation timeline compliance
+3. Validate escalation for critical findings
+4. Test remediation tracking
+
+FINDINGS SUMMARY:
+Total: 8 vulnerabilities identified
+- 1 Critical
+- 2 High
+- 3 Medium
+- 2 Low
+
+CRITICAL FINDING:
+ID: PEN-001-001
+Title: SQL Injection in EquiQuote Legacy Module
+Severity: CRITICAL
+Status: Remediation In Progress
+Timeline: Not specified (assumed ongoing since August 2025)
+
+Problem: CRITICAL VULNERABILITY UNRESOLVED
+- Report date: 18 August 2025
+- Current date: 15 February 2026
+- Time elapsed: 6 months
+- Expected remediation time: 30 days maximum
+- Actual remediation status: "In Progress"
+- RED FLAG: Why is critical SQL injection still not fixed?
+
+HIGH SEVERITY FINDINGS:
+ID: PEN-001-002
+Title: Weak TLS Configuration on EquiClaim Portal
+Severity: HIGH
+Status: Open
+Timeline: No remediation date set
+
+ID: PEN-001-003
+Title: Missing HTTP Security Headers
+Severity: HIGH
+Status: Open
+Timeline: No remediation date set
+
+Problem: HIGH SEVERITY VULNERABILITIES UNRESOLVED
+- Expected remediation time: 60 days
+- Time elapsed: 6+ months
+- Status: Still OPEN
+- RED FLAG: Why haven't high-severity web application vulnerabilities been patched?
+
+MANAGEMENT RESPONSE (from David Chen, CISO):
+Critical Finding: "Development team is actively working on remediation.
+  Code review scheduled for completion by end of September 2025."
+  Problem: Report is from August 2025, and September has passed. Status not updated.
+  Red Flag: No actual completion date confirmed.
+
+High Findings: "Web server configuration update is planned. Timeline depends on
+  change management approval. Currently in change request pipeline."
+  Problem: Vague timeline ("in pipeline"), depends on change management
+  Red Flag: No committed remediation date
+
+AUDIT QUESTIONS:
+Q1: Were critical findings remediated within 30 days? ✗ NO
+Q2: Were high findings remediated within 60 days? ✗ NO
+Q3: Is remediation tracking documented? ~ UNCLEAR (vague management response)
+Q4: Are escalation procedures being followed? ✗ NO (no evidence of escalation)
+Q5: Is vulnerability management process effective? ✗ NO (unresolved findings)
+
+EXPECTED AUDITOR CONCLUSIONS:
+CRITICAL ISSUES IDENTIFIED:
+
+1. Vulnerability Management Gap:
+   - Critical SQL injection unresolved for 6+ months
+   - Expected: Fix within 30 days
+   - Actual: Still in progress
+   - Impact: CRITICAL CONTROL FAILURE
+
+2. Inadequate Remediation Tracking:
+   - No documented remediation dates
+   - No evidence of status updates
+   - Management response lacks specifics
+   - Impact: VISIBILITY AND ACCOUNTABILITY GAP
+
+3. Missing Escalation:
+   - Critical finding should trigger management escalation
+   - No evidence of escalation procedures
+   - No C-level involvement documented
+   - Impact: GOVERNANCE GAP
+
+4. Web Application Security Risk:
+   - TLS and HTTP header vulnerabilities unpatched for 6 months
+   - These are foundational web security controls
+   - Impact: ACTIVE SECURITY RISK
+
+COMPLIANCE IMPACT:
+This finding demonstrates failure to:
+- Remediate critical vulnerabilities promptly
+- Track and monitor vulnerability status
+- Escalate critical findings to management
+- Maintain effective vulnerability management
+
+AUDITOR TEST OBJECTIVE:
+Can auditor identify vulnerability management failures and recognize
+that critical findings remaining unresolved for 6 months indicates
+a breakdown in the vulnerability management process? ✓ TEST COMPETENCY
+
+================================================================================
+DOCUMENT 4: FRM-001_Access_Request_Form_Template.pdf
+================================================================================
+
+DOCUMENT TYPE: Access Request Form (PROFESSIONAL LAYOUT WITH CONTROL GAP)
+FORM PURPOSE: System access request template
+DATE: Template (no specific date)
+
+AUDIT TESTING OBJECTIVES:
+1. Verify access request completeness
+2. Check approval procedures
+3. Identify missing control fields
+4. Validate access review mechanisms
+
+FORM SECTIONS PRESENT:
+✓ Requestor Details (name, department, manager, date, email)
+✓ Systems Requested (checkboxes for 8 systems)
+✓ Access Level (Read-only, Read/Write, Admin)
+✓ Business Justification (text area)
+✓ Approval Blocks (Line Manager, System Owner, IT Security)
+
+DELIBERATE CONTROL GAP:
+Missing Field #1: Access Review Date
+  Expected: Form should specify when this access will be reviewed
+  Actual: NO FIELD for access review date
+  Impact: Indefinite access without defined review trigger
+
+Missing Field #2: Access Expiry Date
+  Expected: Form should specify when access will automatically expire
+  Actual: NO FIELD for expiry date
+  Impact: Indefinite access grants without time limits
+
+FORM FOOTER NOTE (WEAK COMPENSATING CONTROL):
+"NOTE: This form does not include access review or expiry date fields.
+ Access will be reviewed on an annual basis."
+
+Problems with this compensating control:
+1. Stated only in footer, not enforced by form
+2. Annual review is TOO INFREQUENT (should be at least semi-annual)
+3. No automatic expiry mechanism
+4. No escalation if review deadline missed
+5. Relies on manual process, not documented in form
+
+AUDIT QUESTIONS:
+Q1: Does form include access expiry date field? ✗ NO
+Q2: Does form include access review date field? ✗ NO
+Q3: Is annual review adequate? ✗ NO (should be more frequent)
+Q4: Are expiry dates enforced? ✗ NO (no system field)
+Q5: Is compensating control adequate? ✗ NO (footer note, not enforced)
+
+EXPECTED AUDITOR CONCLUSIONS:
+CONTROL GAP IDENTIFIED:
+
+1. Missing Expiry Date Control:
+   - Access grants lack defined expiry dates
+   - No time limit on access grants
+   - Risk: Former employee access may not be revoked promptly
+   - Impact: MODERATE CONTROL WEAKNESS
+
+2. Inadequate Review Frequency:
+   - Annual review is below best practice
+   - Recommended: Semi-annual or quarterly review
+   - Annual review creates 12-month exposure window
+   - Impact: PREVENTIVE CONTROL WEAKNESS
+
+3. No Automatic Expiry Mechanism:
+   - Form does not enforce expiry dates
+   - Reliant on manual processes
+   - No system-enforced controls
+   - Impact: OPERATIONAL RISK
+
+4. Form Design Gap:
+   - Lacks critical access control fields
+   - Compensating control (footer note) is weak
+   - Note is not enforced
+   - Impact: DESIGN AND DOCUMENTATION GAP
+
+REMEDIATION REQUIRED:
+1. Add "Access Review Date" field (recommend quarterly or semi-annual)
+2. Add "Access Expiry Date" field (maximum 1 year)
+3. Implement system controls to enforce expiry
+4. Create process to notify manager before expiry
+5. Create process to automatically disable access at expiry
+6. Remove reliance on annual manual reviews alone
+
+COMPLIANCE REFERENCE:
+ISO 27001 requires:
+- Access rights to be reviewed regularly
+- Access to be revoked promptly when no longer needed
+- Time-limited access grants with automatic expiry
+- Documented access control procedures
+
+AUDITOR TEST OBJECTIVE:
+Can auditor identify missing access review and expiry date fields,
+and recognize that annual reviews are inadequate? ✓ TEST COMPETENCY
+
+================================================================================
+DOCUMENT 5: ARCH-001_Network_Architecture_Diagram.pdf
+================================================================================
+
+DOCUMENT TYPE: Network Architecture Diagram (VISUAL WITH MISSING COMPONENT)
+LAST UPDATED: March 2025
+SCOPE: HorseInsure network infrastructure
+
+AUDIT TESTING OBJECTIVES:
+1. Verify network architecture documentation
+2. Check perimeter security implementation
+3. Validate detection/monitoring controls
+4. Identify missing security components
+
+NETWORK COMPONENTS SHOWN:
+✓ Internet (external connectivity)
+✓ Firewall (primary perimeter defense)
+✓ DMZ (demilitarized zone for web servers)
+  - EquiClaim portal
+  - EquiQuote portal
+✓ Internal Network (core business systems)
+  - EquiPolicy
+  - SAP Finance
+  - Azure AD
+  - Salesforce
+✓ Azure Cloud (CloudStable IaaS, Microsoft 365)
+✓ Remote Workers (VPN connectivity)
+✓ WAN Links (Dubbo, Scone branch offices)
+
+DELIBERATE OMISSION:
+Missing Component: IDS/IPS (Intrusion Detection/Prevention System)
+Expected: Network architecture should show intrusion detection layer
+Actual: NO IDS/IPS shown anywhere in diagram
+Impact: Suggests missing detection/monitoring controls
+
+NETWORK SECURITY ANALYSIS:
+
+Current Architecture Shows:
+1. Perimeter Protection: ✓ PRESENT (Firewall)
+   - Controls: Inbound/outbound traffic filtering
+   - Function: Prevents unauthorized network access
+
+2. Network Segmentation: ✓ PRESENT (DMZ + Internal zones)
+   - Controls: Logical separation of trust zones
+   - Function: Limits lateral movement
+
+3. Remote Access Control: ✓ PRESENT (VPN)
+   - Controls: Encrypted tunnels for remote workers
+   - Function: Secure off-site connectivity
+
+Current Architecture Missing:
+1. Intrusion Detection: ✗ NOT SHOWN
+   - Expected control: IDS/IPS systems
+   - Function: Detect and block malicious traffic patterns
+   - Gap: No active monitoring of network traffic
+
+2. Intrusion Prevention: ✗ NOT SHOWN
+   - Expected control: IPS/WAF
+   - Function: Automatically block detected attacks
+   - Gap: No automated response to threats
+
+3. Traffic Monitoring: ✗ NOT SHOWN
+   - Expected control: Network monitoring tools
+   - Function: Log and analyze network behavior
+   - Gap: Limited visibility into network activity
+
+AUDIT QUESTIONS:
+Q1: Is perimeter firewall documented? ✓ YES
+Q2: Are network zones properly segmented? ✓ YES
+Q3: Is intrusion detection system shown? ✗ NO
+Q4: Is intrusion prevention system shown? ✗ NO
+Q5: Is network monitoring documented? ✗ NO
+
+EXPECTED AUDITOR CONCLUSIONS:
+CONTROL GAP IDENTIFIED:
+
+1. Missing Detection Controls:
+   - No IDS shown in architecture
+   - No intrusion detection capability documented
+   - Risk: Undetected intrusions on network
+   - Impact: PREVENTIVE AND DETECTIVE CONTROL WEAKNESS
+
+2. Missing Prevention Controls:
+   - No IPS shown in architecture
+   - No automated attack blocking documented
+   - Risk: Detected attacks proceed unblocked
+   - Impact: PREVENTIVE CONTROL WEAKNESS
+
+3. Incomplete Architecture:
+   - Perimeter protection present (firewall)
+   - Internal detection missing (IDS/IPS)
+   - Creates security blind spot
+   - Impact: MULTI-LAYER DEFENSE GAP
+
+4. Monitoring Visibility Gap:
+   - No documentation of network monitoring tools
+   - No SIEM (Security Information Event Management) shown
+   - No log aggregation shown
+   - Impact: VISIBILITY AND INCIDENT RESPONSE GAP
+
+NETWORK SECURITY IMPLICATIONS:
+With current architecture:
+- Perimeter attack: Firewall may detect ✓
+- Lateral movement: Might be undetected ✗
+- Internal compromise: No monitoring capability ✗
+- Insider threat: Limited visibility ✗
+- Incident response: Limited forensic data ✗
+
+REMEDIATION REQUIRED:
+1. Implement IDS/IPS solution
+   - Recommended placement: DMZ and internal network segments
+   - Technology: Network-based IDS (Suricata, Snort, etc.)
+
+2. Implement SIEM solution
+   - Centralize security event logging
+   - Enable correlation and pattern detection
+   - Maintain 90-day log retention minimum
+
+3. Update architecture diagram
+   - Add IDS/IPS devices to DMZ
+   - Add SIEM to central security operations
+   - Document monitoring tool placement
+   - Show log collection/aggregation
+
+4. Implement network baseline
+   - Document expected traffic patterns
+   - Create alert rules for anomalies
+   - Enable real-time alerting
+
+COMPLIANCE REFERENCE:
+ISO 27001 requires:
+- Detection of information security incidents
+- Logging of user, administrator, and system activities
+- Protection of logs from tampering
+- Regular review of logs and anomalies
+
+AUDITOR TEST OBJECTIVE:
+Can auditor identify that network architecture lacks detection/prevention
+systems and recognize the gap in monitoring and incident detection
+capabilities? ✓ TEST COMPETENCY
+
+================================================================================
+SUMMARY OF AUDIT TESTING OPPORTUNITIES
+================================================================================
+
+DOCUMENT MAPPING TO CONTROL OBJECTIVES:
+
+1. SSA-001 → Supplier Management Control Assessment
+   • Best practice example
+   • Demonstrates comprehensive assessment
+   • Reference for evaluation criteria
+
+2. SSA-002 → Supplier Management Control Testing
+   • Weak assessment example
+   • Tests auditor's ability to identify gaps
+   • Tests review and approval procedures
+
+3. PEN-001 → Vulnerability Management Control Assessment
+   • Professional report with weak remediation
+   • Tests auditor's ability to identify delays
+   • Tests escalation procedures
+   • Tests remediation tracking
+
+4. FRM-001 → Access Control Testing
+   • Tests form completeness
+   • Tests access review procedures
+   • Tests expiry date controls
+   • Tests approval workflows
+
+5. ARCH-001 → Network Security Control Assessment
+   • Tests architecture documentation
+   • Tests network segmentation
+   • Tests detection/prevention controls
+   • Tests monitoring capabilities
+
+AUDITOR COMPETENCY ASSESSMENT:
+
+These documents test auditor ability to:
+1. Identify incomplete assessments ← SSA-002
+2. Challenge weak approvals ← SSA-002
+3. Recognize unresolved critical findings ← PEN-001
+4. Identify missing control fields ← FRM-001
+5. Recognize missing security components ← ARCH-001
+6. Understand remediation timelines ← PEN-001
+7. Evaluate risk ratings ← SSA-001, SSA-002
+8. Verify evidence documentation ← SSA-001, SSA-002
+9. Challenge compensating controls ← FRM-001
+10. Assess network security architecture ← ARCH-001
+
+================================================================================
+SUGGESTED AUDIT TESTING PROGRAM
+================================================================================
+
+PHASE 1 - SUPPLIER MANAGEMENT
+Documents: SSA-001, SSA-002
+Time: 1-2 hours
+
+1. Review SSA-001 (good example)
+   - Identify all assessment areas
+   - Note evidence collection methodology
+   - Review risk rating justification
+
+2. Review SSA-002 (weak example)
+   - Identify missing assessment areas
+   - Note gaps in evidence collection
+   - Challenge risk rating and approval
+
+3. Compare assessments
+   - Identify differences in completeness
+   - Review assessment procedures
+   - Recommend improvement actions
+
+PHASE 2 - VULNERABILITY MANAGEMENT
+Documents: PEN-001
+Time: 1-2 hours
+
+1. Review findings
+   - Categorize by severity
+   - Check remediation timelines
+   - Identify unresolved items
+
+2. Review remediation status
+   - Verify critical remediation progress
+   - Check for overdue findings
+   - Review management response
+
+3. Assess management processes
+   - Review escalation procedures
+   - Check remediation tracking system
+   - Recommend improvement actions
+
+PHASE 3 - ACCESS CONTROL
+Documents: FRM-001
+Time: 30-45 minutes
+
+1. Review form design
+   - List all form fields
+   - Identify missing fields
+   - Review approval procedures
+
+2. Identify control gaps
+   - Access review date field
+   - Access expiry date field
+   - Automatic expiry mechanism
+
+3. Assess compensating controls
+   - Review footer note
+   - Check for documented procedures
+   - Recommend form redesign
+
+PHASE 4 - NETWORK SECURITY
+Documents: ARCH-001
+Time: 45-60 minutes
+
+1. Review architecture
+   - List all components
+   - Identify security layers
+   - Note monitoring/detection controls
+
+2. Identify missing components
+   - IDS/IPS systems
+   - SIEM solutions
+   - Monitoring tools
+
+3. Assess security layers
+   - Perimeter controls
+   - Segmentation controls
+   - Detection controls
+   - Logging/monitoring controls
+
+TOTAL AUDIT TIME: 3.5-5 hours
+
+================================================================================
+END OF AUDITOR TESTING GUIDE
+================================================================================

@@ -1,0 +1,212 @@
+================================================================================
+ISO 27001 COMPLIANCE TEST DOCUMENTS - HORSEINSURE PTY LTD
+Generated: 15 February 2026
+================================================================================
+
+COMPANY DETAILS:
+  Name: HorseInsure Pty Ltd
+  ABN: 41 209 837 156
+  Type: Australian Insurance Company (horse insurance, including inflatable horses)
+  Employees: 254
+
+DOCUMENT GENERATION STATUS: SUCCESS
+All 5 PDF documents created successfully using reportlab with professional formatting.
+
+================================================================================
+DOCUMENTS GENERATED
+================================================================================
+
+1. SSA-001_Supplier_Assessment_CloudStable.pdf
+   ─────────────────────────────────────────
+   Size: 5.5 KB | Pages: 2
+   Date: 15 May 2025
+   Assessor: Angela Torres (Compliance Manager)
+
+   Content:
+   - Comprehensive supplier security assessment for CloudStable Pty Ltd
+   - Assessment of IaaS provider (hosts EquiClaim and EquiPolicy)
+   - Covers: Data handling, access controls, incident notification, BC/DR, certifications
+   - Assessment findings table with 5 key areas, all rated COMPLIANT
+   - Risk assessment table showing LOW risk across all categories
+   - Executive summary highlighting ISO 27001, SOC 2 Type II, IRAP Moderate certifications
+   - Overall Risk Rating: LOW
+   - Recommendation: APPROVED FOR CONTINUED USE
+
+   Quality: HIGH - Complete, well-documented assessment with evidence review notes
+   Auditor Concern: None - this is best-practice supplier assessment
+
+
+2. SSA-002_Supplier_Assessment_DataVault.pdf
+   ──────────────────────────────────────────
+   Size: 3.3 KB | Pages: 1
+   Date: 22 May 2025
+   Assessor: Marcus Lee (IT Security Analyst)
+
+   Content:
+   - Thin/incomplete supplier security assessment for DataVault Solutions
+   - Assessment of offsite backup provider
+   - Assessment findings table with 5 areas, mostly marked "N/A" or "PARTIAL"
+   - Incident notification NOT reviewed during assessment
+   - Compliance certifications marked "N/A" - NO evidence review conducted
+   - Several findings marked "ASSUMED" without documented verification
+   - Overall Risk Rating: MEDIUM (but weak justification)
+   - Recommendation: APPROVED (despite obvious gaps)
+
+   Quality: LOW - Deliberately incomplete, hasty assessment
+   Auditor Concern: CRITICAL - This assessment shows poor due diligence:
+     * Missing certification validation (marked N/A)
+     * Incident notification procedures not reviewed
+     * Weak justifications for MEDIUM risk rating
+     * Approval despite identified gaps
+     * No evidence of control verification
+   Finding: Red flag for auditors - suggests assessment was rushed
+
+
+3. PEN-001_Penetration_Test_Report_Aug2025.pdf
+   ────────────────────────────────────────────
+   Size: 6.8 KB | Pages: 3
+   Date: 18 August 2025
+   Testing Firm: CyberShield Consulting Pty Ltd
+   Test Period: 5-9 August 2025
+
+   Content:
+   - Professional external penetration test report
+   - Scope: External perimeter, web applications (EquiClaim, EquiQuote portals)
+   - Executive summary and testing methodology documented
+   - Findings summary: 1 Critical, 2 High, 3 Medium, 2 Low (8 total findings)
+   - Detailed findings table with:
+     * PEN-001-001: SQL injection in EquiQuote legacy module (Critical)
+       Status: Remediation In Progress
+     * PEN-001-002: Weak TLS config on EquiClaim (High) - Status: Open
+     * PEN-001-003: Missing HTTP security headers (High) - Status: Open
+     * PEN-001-004-008: Medium and Low findings - Status: Open
+   - Management response section
+   - Next steps and recommendations
+
+   Quality: PROFESSIONAL - Well-structured, comprehensive report
+   Auditor Concern: CRITICAL - Unresolved critical finding (6 months old):
+     * Critical SQL injection marked "Remediation In Progress" but no completion date
+     * Two High severity findings still Open since August 2025
+     * This indicates delayed remediation of critical vulnerabilities
+     * Red flag: Why were critical/high findings not fixed within 30/60 days?
+
+
+4. FRM-001_Access_Request_Form_Template.pdf
+   ──────────────────────────────────────────
+   Size: 3.5 KB | Pages: 1
+   Date: Template (no specific date)
+
+   Content:
+   - Professional access request form template
+   - Sections:
+     * Requestor details (name, department, manager, date)
+     * Systems requested (checkboxes for 8 systems)
+     * Access level selection (Read-only, Read/Write, Admin)
+     * Business justification text area
+     * Approval signature blocks (Line Manager, System Owner, IT Security)
+   - Professional form layout with clear sections
+
+   Quality: PROFESSIONAL LAYOUT - Well-organized form
+   Auditor Concern: MODERATE - Missing important field:
+     * NO "access review date" field
+     * NO "access expiry date" field
+     * Form note says "will be reviewed on an annual basis" but nothing on form
+     * This is a gap - access should have defined expiry dates
+     * Red flag: Indefinite access without automatic review/expiry tracking
+
+
+5. ARCH-001_Network_Architecture_Diagram.pdf
+   ──────────────────────────────────────────
+   Size: 4.5 KB | Pages: 2
+   Date: Last updated March 2025
+
+   Content:
+   - Network architecture diagram using reportlab graphics
+   - Components shown:
+     * Internet
+     * Firewall (primary perimeter)
+     * DMZ (EquiClaim, EquiQuote web servers)
+     * Internal Network (EquiPolicy, SAP Finance, Azure AD, Salesforce)
+     * Azure Cloud services (CloudStable IaaS, Microsoft 365)
+     * Remote workers (VPN)
+     * WAN links (Dubbo, Scone branch offices)
+   - Legend explaining each component
+   - Architecture description
+
+   Quality: CLEAR & PROFESSIONAL - Good visual representation
+   Auditor Concern: NOTABLE OMISSION - Missing security component:
+     * NO IDS/IPS (Intrusion Detection/Prevention System) shown
+     * Diagram shows perimeter protection (firewall) but NO internal detection
+     * Red flag: Lack of intrusion detection is a control gap
+     * Network architecture should include monitoring/detection systems
+
+
+================================================================================
+DOCUMENT STATISTICS
+================================================================================
+
+Total PDFs Generated:     5
+Total Page Count:        9 pages
+Total File Size:         ~23 KB
+File Format:            PDF 1.4 (A4 size)
+Header/Footer:          All documents include HorseInsure header and page numbers
+Professional Layout:     All documents use consistent styling, tables, and formatting
+
+
+================================================================================
+KEY FINDINGS FOR AUDITORS
+================================================================================
+
+GAPS DELIBERATELY INCLUDED (TEST CASE PURPOSES):
+
+1. Supplier Assessment Gaps (SSA-002):
+   - Incomplete certification review
+   - Missing control assessments
+   - Weak risk justification
+   - Approval despite gaps
+   → Test for: Supplier due diligence effectiveness
+
+2. Unresolved Penetration Test Findings (PEN-001):
+   - Critical vulnerability still in progress (6+ months)
+   - High severity findings open/unresolved
+   - No documented remediation timelines
+   → Test for: Vulnerability management and remediation tracking
+
+3. Access Request Form Gaps (FRM-001):
+   - No access expiry date field
+   - No automatic review trigger
+   - Vague annual review policy
+   → Test for: Access review and provisioning controls
+
+4. Network Diagram Omission (ARCH-001):
+   - No IDS/IPS shown in architecture
+   - Missing detection/monitoring layer
+   - Gap in intrusion detection controls
+   → Test for: Monitoring and detection controls effectiveness
+
+
+================================================================================
+USAGE NOTES
+================================================================================
+
+These documents are designed for ISO 27001 compliance testing and auditing
+scenarios. They include:
+
+- Professional formatting to appear genuine during audit reviews
+- Realistic dates, names, and organizational details
+- Intentional gaps and weaknesses for auditor testing
+- Complete information architecture (references, signatures, sign-offs)
+- Multiple document types (assessments, reports, forms, diagrams)
+
+Suitable for:
+- Internal audit procedures
+- Compliance testing exercises
+- Auditor training scenarios
+- Security control validation testing
+- ISO 27001 gap analysis simulations
+
+
+================================================================================
+Generated using: Python 3 + reportlab library
+Output Directory: /sessions/determined-serene-wozniak/mnt/iso_27001/test_case/
+================================================================================
