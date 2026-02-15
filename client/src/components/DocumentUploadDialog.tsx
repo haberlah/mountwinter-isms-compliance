@@ -21,7 +21,22 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, FileText, FileSpreadsheet, Image, AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  Upload,
+  X,
+  FileText,
+  FileSpreadsheet,
+  Image,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
+import type {
+  AnalysisProgress,
+  AnalysisMatch,
+  AnalysisCompleteResult,
+} from "@/hooks/useDocumentAnalysis";
 
 const ALLOWED_TYPES = [
   "application/pdf",
@@ -57,6 +72,24 @@ function getFileIcon(mimeType: string) {
   return <FileText className="h-4 w-4 text-muted-foreground" />;
 }
 
+/** Returns a human-readable label for the analysis phase */
+function getPhaseLabel(phase: string): string {
+  switch (phase) {
+    case "extracting":
+      return "Extracting text from document...";
+    case "chunking":
+      return "Preparing document for analysis...";
+    case "analysing":
+      return "Analysing with AI...";
+    case "fusion":
+      return "Merging multi-section evidence...";
+    case "complete":
+      return "Analysis complete";
+    default:
+      return "Processing...";
+  }
+}
+
 interface UploadResult {
   document: any;
   isDuplicate: boolean;
@@ -68,6 +101,21 @@ interface DocumentUploadDialogProps {
   /** Pre-selected control ID when opened from control detail page */
   controlId?: number;
   controlNumber?: string;
+  /**
+   * Callback to upload files and trigger AI analysis via SSE.
+   * Provided by ControlDocumentsSection when uploading against a specific control.
+   * When absent, files upload to the central repository only (no analysis).
+   */
+  onUploadAndAnalyse?: (
+    files: File[],
+    metadata: { evidenceType?: string; documentDate?: string; description?: string }
+  ) => Promise<void>;
+  /** Live analysis state — passed from the parent's useDocumentAnalysis hook */
+  analysisProgress?: AnalysisProgress | null;
+  analysisMatches?: AnalysisMatch[];
+  analysisComplete?: AnalysisCompleteResult | null;
+  analysisError?: string | null;
+  isAnalysing?: boolean;
 }
 
 export function DocumentUploadDialog({
@@ -75,6 +123,12 @@ export function DocumentUploadDialog({
   onOpenChange,
   controlId,
   controlNumber,
+  onUploadAndAnalyse,
+  analysisProgress,
+  analysisMatches,
+  analysisComplete,
+  analysisError,
+  isAnalysing,
 }: DocumentUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [evidenceType, setEvidenceType] = useState<string>("");
@@ -83,10 +137,13 @@ export function DocumentUploadDialog({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResults, setUploadResults] = useState<UploadResult[]>([]);
+  // Tracks whether we used the control-specific (SSE analysis) upload path
+  const [usedControlUpload, setUsedControlUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // ─── Repository-only upload (no analysis) ──────────────────────────────────
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
       const formData = new FormData();
@@ -188,11 +245,43 @@ export function DocumentUploadDialog({
     [handleFileSelect]
   );
 
-  const handleUpload = useCallback(() => {
+  // ─── Upload handler — routes to the correct pipeline ───────────────────────
+  const handleUpload = useCallback(async () => {
     if (selectedFiles.length === 0) return;
+
+    // When a control is selected AND the analysis callback is available,
+    // use the control-specific SSE endpoint that triggers AI analysis.
+    if (controlId && onUploadAndAnalyse) {
+      setUsedControlUpload(true);
+      setUploadProgress(10);
+      try {
+        await onUploadAndAnalyse(selectedFiles, {
+          evidenceType: evidenceType || undefined,
+          documentDate: documentDate || undefined,
+          description: description || undefined,
+        });
+        setUploadProgress(100);
+        toast({
+          title: "Upload & analysis complete",
+          description: `Documents uploaded and analysed against control ${controlNumber}.`,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Upload failed";
+        toast({
+          title: "Upload failed",
+          description: msg,
+          variant: "destructive",
+        });
+        setUploadProgress(0);
+      }
+      return;
+    }
+
+    // Fallback: repository-only upload (no control linking or analysis)
+    setUsedControlUpload(false);
     setUploadProgress(10);
     uploadMutation.mutate(selectedFiles);
-  }, [selectedFiles, uploadMutation]);
+  }, [selectedFiles, controlId, onUploadAndAnalyse, evidenceType, documentDate, description, controlNumber, uploadMutation, toast]);
 
   const resetForm = useCallback(() => {
     setSelectedFiles([]);
@@ -201,6 +290,7 @@ export function DocumentUploadDialog({
     setDocumentDate("");
     setUploadProgress(0);
     setUploadResults([]);
+    setUsedControlUpload(false);
   }, []);
 
   const handleClose = useCallback(
@@ -213,8 +303,9 @@ export function DocumentUploadDialog({
     [onOpenChange, resetForm]
   );
 
-  const isUploading = uploadMutation.isPending;
-  const isComplete = uploadProgress === 100;
+  const isUploading = uploadMutation.isPending || (usedControlUpload && uploadProgress > 0 && uploadProgress < 100 && !analysisComplete && !analysisError);
+  const isComplete = uploadProgress === 100 && (!usedControlUpload || !!analysisComplete || !!analysisError);
+  const showAnalysisProgress = usedControlUpload && (isAnalysing || !!analysisProgress);
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
@@ -230,7 +321,7 @@ export function DocumentUploadDialog({
 
         <div className="mt-6 space-y-6">
           {/* Drag-and-drop zone */}
-          {!isComplete && (
+          {!isComplete && !showAnalysisProgress && (
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colours cursor-pointer ${
                 isDragging
@@ -263,7 +354,7 @@ export function DocumentUploadDialog({
           )}
 
           {/* Selected files list */}
-          {selectedFiles.length > 0 && !isComplete && (
+          {selectedFiles.length > 0 && !isComplete && !showAnalysisProgress && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">
                 Selected files ({selectedFiles.length})
@@ -299,7 +390,7 @@ export function DocumentUploadDialog({
           )}
 
           {/* Metadata fields */}
-          {selectedFiles.length > 0 && !isComplete && (
+          {selectedFiles.length > 0 && !isComplete && !showAnalysisProgress && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="evidenceType">Evidence Type</Label>
@@ -342,8 +433,8 @@ export function DocumentUploadDialog({
             </>
           )}
 
-          {/* Upload progress */}
-          {isUploading && (
+          {/* Upload progress — repository-only flow */}
+          {isUploading && !usedControlUpload && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Uploading...</span>
@@ -353,8 +444,91 @@ export function DocumentUploadDialog({
             </div>
           )}
 
-          {/* Upload results */}
-          {isComplete && uploadResults.length > 0 && (
+          {/* Analysis progress — control-specific flow with SSE streaming */}
+          {showAnalysisProgress && !analysisComplete && !analysisError && (
+            <div className="space-y-4 p-4 rounded-lg border bg-blue-50/50">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {analysisProgress ? getPhaseLabel(analysisProgress.phase) : "Uploading documents..."}
+              </div>
+              {analysisProgress && analysisProgress.total > 0 && (
+                <Progress
+                  value={(analysisProgress.current / analysisProgress.total) * 100}
+                  className="h-2"
+                />
+              )}
+              {analysisProgress?.message && (
+                <p className="text-xs text-blue-600">{analysisProgress.message}</p>
+              )}
+              {/* Show matches as they stream in */}
+              {analysisMatches && analysisMatches.length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-blue-200">
+                  <p className="text-xs font-medium text-blue-700">
+                    Matches found: {analysisMatches.length}
+                  </p>
+                  {analysisMatches.slice(-3).map((match, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs text-blue-600">
+                      <Sparkles className="h-3 w-3 shrink-0" />
+                      <span>Q{match.questionId}: {match.strengthLabel}</span>
+                      <Badge variant="outline" className="text-[10px] h-4 px-1">
+                        {(match.compositeScore * 100).toFixed(0)}%
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Analysis error */}
+          {usedControlUpload && analysisError && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-red-600">
+                <AlertCircle className="h-4 w-4" />
+                Analysis failed
+              </div>
+              <p className="text-xs text-red-600">{analysisError}</p>
+            </div>
+          )}
+
+          {/* Analysis complete — control-specific flow */}
+          {usedControlUpload && analysisComplete && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                <CheckCircle2 className="h-4 w-4" />
+                Upload & analysis complete
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded-md border bg-green-50">
+                  <span className="font-medium text-green-700">{analysisComplete.strongMatches}</span>
+                  <span className="text-green-600 ml-1">strong matches</span>
+                </div>
+                <div className="p-2 rounded-md border bg-amber-50">
+                  <span className="font-medium text-amber-700">{analysisComplete.partialMatches}</span>
+                  <span className="text-amber-600 ml-1">partial matches</span>
+                </div>
+                <div className="p-2 rounded-md border bg-orange-50">
+                  <span className="font-medium text-orange-700">{analysisComplete.weakMatches}</span>
+                  <span className="text-orange-600 ml-1">weak matches</span>
+                </div>
+                <div className="p-2 rounded-md border bg-red-50">
+                  <span className="font-medium text-red-700">{analysisComplete.evidenceGaps}</span>
+                  <span className="text-red-600 ml-1">evidence gaps</span>
+                </div>
+              </div>
+              {analysisComplete.pendingSuggestions > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-md border bg-purple-50 text-xs">
+                  <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                  <span className="text-purple-700">
+                    <strong>{analysisComplete.pendingSuggestions}</strong> AI suggestions ready for review in the questionnaire below
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Upload results — repository-only flow */}
+          {!usedControlUpload && isComplete && uploadResults.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-green-600">
                 <CheckCircle2 className="h-4 w-4" />
@@ -400,7 +574,7 @@ export function DocumentUploadDialog({
                 <Button
                   variant="outline"
                   onClick={() => handleClose(false)}
-                  disabled={isUploading}
+                  disabled={isUploading || isAnalysing}
                   className="flex-1"
                   data-testid="button-cancel-upload"
                 >
@@ -408,11 +582,15 @@ export function DocumentUploadDialog({
                 </Button>
                 <Button
                   onClick={handleUpload}
-                  disabled={selectedFiles.length === 0 || isUploading}
+                  disabled={selectedFiles.length === 0 || isUploading || isAnalysing}
                   className="flex-1"
                   data-testid="button-upload-all"
                 >
-                  {isUploading ? "Uploading..." : `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ""}`}
+                  {isUploading || isAnalysing
+                    ? "Processing..."
+                    : controlId && onUploadAndAnalyse
+                      ? `Upload & Analyse ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ""}`
+                      : `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ""}`}
                 </Button>
               </>
             )}

@@ -136,8 +136,11 @@ export function ControlDocumentsSection({
   const queryClient = useQueryClient();
 
   const {
+    uploadAndAnalyse,
     isAnalysing,
     progress,
+    matches,
+    completeResult,
     error: analysisError,
   } = useDocumentAnalysis(organisationControlId);
 
@@ -338,6 +341,12 @@ export function ControlDocumentsSection({
         onOpenChange={setUploadOpen}
         controlId={organisationControlId}
         controlNumber={controlNumber}
+        onUploadAndAnalyse={uploadAndAnalyse}
+        analysisProgress={progress}
+        analysisMatches={matches}
+        analysisComplete={completeResult}
+        analysisError={analysisError}
+        isAnalysing={isAnalysing}
       />
     </>
   );
