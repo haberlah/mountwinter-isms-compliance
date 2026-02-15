@@ -3,15 +3,18 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle, 
-  Clock, 
+import {
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Clock,
   TrendingUp,
   Calendar,
   ClipboardList,
-  Activity
+  Activity,
+  FileText,
+  FolderOpen,
+  Sparkles,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
@@ -371,6 +374,125 @@ function CategoryBreakdownChart({ breakdown }: { breakdown: DashboardStats["cate
   );
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function DocumentCoverageCard({ stats }: { stats: NonNullable<DashboardStats["documentStats"]> }) {
+  const [, navigate] = useLocation();
+  const totalApplicable = stats.controlsWithEvidence + stats.controlsWithGaps;
+  const coveragePercent = totalApplicable > 0
+    ? Math.round((stats.controlsWithEvidence / totalApplicable) * 100)
+    : 0;
+
+  // Determine progress colour
+  let progressColour = "bg-red-500";
+  if (coveragePercent >= 80) progressColour = "bg-green-500";
+  else if (coveragePercent >= 50) progressColour = "bg-amber-500";
+
+  // Build document type breakdown string
+  const typeEntries = Object.entries(stats.documentsByType)
+    .filter(([, count]) => count > 0)
+    .sort(([, a], [, b]) => b - a);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2">
+          <FolderOpen className="h-5 w-5" />
+          Document Evidence
+        </CardTitle>
+        <CardDescription>Document coverage across applicable controls</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Top stats row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="text-center p-2 rounded-md bg-muted/50">
+            <p className="text-2xl font-bold" data-testid="text-total-documents">
+              {stats.totalDocuments}
+            </p>
+            <p className="text-xs text-muted-foreground">Documents</p>
+            <p className="text-[10px] text-muted-foreground">
+              {formatFileSize(stats.totalFileSize)}
+            </p>
+          </div>
+          <div className="text-center p-2 rounded-md bg-muted/50">
+            <p className="text-2xl font-bold text-green-600" data-testid="text-controls-with-evidence">
+              {stats.controlsWithEvidence}
+            </p>
+            <p className="text-xs text-muted-foreground">With evidence</p>
+          </div>
+          <div className="text-center p-2 rounded-md bg-muted/50">
+            <p className="text-2xl font-bold text-amber-600" data-testid="text-controls-with-gaps">
+              {stats.controlsWithGaps}
+            </p>
+            <p className="text-xs text-muted-foreground">Evidence gaps</p>
+          </div>
+          <div className="text-center p-2 rounded-md bg-muted/50">
+            <p className="text-2xl font-bold text-blue-600" data-testid="text-pending-suggestions">
+              {stats.pendingSuggestions}
+            </p>
+            <p className="text-xs text-muted-foreground">To review</p>
+          </div>
+        </div>
+
+        {/* Coverage progress bar */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium">
+              Evidence coverage: {stats.controlsWithEvidence} of {totalApplicable} controls
+            </span>
+            <span className="text-muted-foreground">{coveragePercent}%</span>
+          </div>
+          <div className="relative h-2 w-full rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${progressColour}`}
+              style={{ width: `${coveragePercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Pending suggestions callout */}
+        {stats.pendingSuggestions > 0 && (
+          <div
+            className="flex items-center gap-2 p-2.5 rounded-md border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 cursor-pointer hover:bg-amber-100/50 transition-colors"
+            onClick={() => navigate("/controls")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigate("/controls");
+              }
+            }}
+            tabIndex={0}
+            role="link"
+            data-testid="link-pending-suggestions"
+          >
+            <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+            <span className="text-xs text-amber-700 dark:text-amber-400">
+              <span className="font-medium">{stats.pendingSuggestions}</span> AI suggestion{stats.pendingSuggestions !== 1 ? "s" : ""} awaiting review
+            </span>
+          </div>
+        )}
+
+        {/* Document type breakdown */}
+        {typeEntries.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            {typeEntries.map(([type, docCount]) => (
+              <Badge key={type} variant="secondary" className="text-[10px] h-5 px-1.5">
+                {type}: {docCount}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
@@ -489,6 +611,11 @@ export default function Dashboard() {
           />
           <QuestionnaireProgress progress={data.questionnaireProgress} />
         </div>
+
+        {/* Document coverage card — shown when documents exist */}
+        {data.documentStats && data.documentStats.totalDocuments > 0 && (
+          <DocumentCoverageCard stats={data.documentStats} />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <DueSoonList dueSoon={data.dueSoon} />

@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Shield,
+  FolderOpen,
   Settings,
 } from "lucide-react";
 import {
@@ -28,6 +29,11 @@ const navItems = [
     title: "Controls",
     url: "/controls",
     icon: Shield,
+  },
+  {
+    title: "Documents",
+    url: "/documents",
+    icon: FolderOpen,
   },
   {
     title: "Settings",

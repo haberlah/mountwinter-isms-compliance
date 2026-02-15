@@ -3,9 +3,16 @@ import { ChevronDown, ChevronRight, Check, Loader2, AlertTriangle } from "lucide
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SeverityBadge } from "./SeverityBadge";
 import { EvidenceLinkManager } from "./EvidenceLinkManager";
-import type { OntologyQuestion, Persona, QuestionResponse } from "@shared/schema";
+import { DocumentQuestionMatches } from "./DocumentQuestionMatches";
+import type { OntologyQuestion, Persona, QuestionResponse, DocumentQuestionMatch } from "@shared/schema";
 
 interface QuestionCardProps {
   question: OntologyQuestion;
@@ -15,6 +22,12 @@ interface QuestionCardProps {
   onResponseChange: (questionId: number, responseText: string) => void;
   organisationControlId?: number;
   saveStatus: "idle" | "saving" | "saved" | "error";
+  /** AI-generated document matches for this question */
+  questionMatches?: DocumentQuestionMatch[];
+  /** Evidence status: none, partial, or full — computed from matches */
+  evidenceStatus?: "none" | "partial" | "full";
+  /** Number of pending AI suggestions for this question */
+  pendingSuggestions?: number;
 }
 
 interface CollapsibleSectionProps {
@@ -100,6 +113,9 @@ export function QuestionCard({
   onResponseChange,
   organisationControlId,
   saveStatus,
+  questionMatches,
+  evidenceStatus,
+  pendingSuggestions,
 }: QuestionCardProps) {
   const [responseText, setResponseText] = useState(response?.response_text || "");
 
@@ -117,15 +133,64 @@ export function QuestionCard({
     [question.question_id, onResponseChange]
   );
 
+  // Handle accepted suggestion — update local response text
+  const handleSuggestionAccepted = useCallback(
+    (matchId: number, responseText: string) => {
+      setResponseText(responseText);
+      onResponseChange(question.question_id, responseText);
+    },
+    [question.question_id, onResponseChange]
+  );
+
+  // Evidence status indicator
+  const evidenceDot = evidenceStatus === "full" ? (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" data-testid={`evidence-dot-${question.question_id}`} />
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Strong document evidence available</p>
+      </TooltipContent>
+    </Tooltip>
+  ) : evidenceStatus === "partial" ? (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" data-testid={`evidence-dot-${question.question_id}`} />
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Partial document evidence — review suggestions or upload additional documents</p>
+      </TooltipContent>
+    </Tooltip>
+  ) : evidenceStatus === "none" ? (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400 shrink-0" data-testid={`evidence-dot-${question.question_id}`} />
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>No supporting documentation found. Expected: {question.evidence_type}</p>
+      </TooltipContent>
+    </Tooltip>
+  ) : null;
+
   return (
     <Card className="border-zinc-200 dark:border-zinc-700" data-testid={`card-question-${question.question_id}`}>
       <CardContent className="p-4 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-medium shrink-0">
-              Q{questionNumber}
-            </span>
-            <p className="font-medium text-sm pt-0.5">{question.question}</p>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-medium">
+                Q{questionNumber}
+              </span>
+              {evidenceDot}
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-sm pt-0.5">{question.question}</p>
+              {(pendingSuggestions ?? 0) > 0 && (
+                <Badge className="mt-1 text-[10px] h-4 px-1.5 bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-100">
+                  {pendingSuggestions} suggestion{pendingSuggestions !== 1 ? "s" : ""} to review
+                </Badge>
+              )}
+            </div>
           </div>
           <SeverityBadge severity={question.severity} />
         </div>
@@ -239,6 +304,16 @@ export function QuestionCard({
               {saveStatus === "idle" && null}
             </div>
           </div>
+
+          {/* Document evidence matches */}
+          {organisationControlId && questionMatches && questionMatches.length > 0 && (
+            <DocumentQuestionMatches
+              questionId={question.question_id}
+              matches={questionMatches}
+              organisationControlId={organisationControlId}
+              onSuggestionAccepted={handleSuggestionAccepted}
+            />
+          )}
         </div>
       </CardContent>
     </Card>

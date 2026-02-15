@@ -1,5 +1,6 @@
 import {
   users, controlCategories, controls, organisationControls, testRuns, aiInteractions, organisationProfile, evidenceLinks,
+  documents, documentChunks, documentControlLinks, documentQuestionMatches, responseChangeLog,
   type User, type InsertUser,
   type ControlCategory, type InsertControlCategory,
   type Control, type InsertControl,
@@ -8,11 +9,17 @@ import {
   type AiInteraction, type InsertAiInteraction,
   type OrganisationProfile, type InsertOrganisationProfile,
   type EvidenceLink, type InsertEvidenceLink,
+  type Document, type InsertDocument,
+  type DocumentChunk, type InsertDocumentChunk,
+  type DocumentControlLink, type InsertDocumentControlLink,
+  type DocumentQuestionMatch, type InsertDocumentQuestionMatch,
+  type ResponseChangeLogEntry, type InsertResponseChangeLog,
   type DashboardStats, type ControlWithDetails, type TestRunWithDetails,
-  type ControlsStats, type ControlWithLatestTest, type ControlApplicability
+  type ControlsStats, type ControlWithLatestTest, type ControlApplicability,
+  type DocumentStats,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, sql, isNull, count, asc } from "drizzle-orm";
+import { eq, desc, and, or, sql, isNull, count, asc, inArray, sum, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -67,6 +74,38 @@ export interface IStorage {
   getEvidenceLinksByTestRun(testRunId: number): Promise<EvidenceLink[]>;
   createEvidenceLink(link: InsertEvidenceLink): Promise<EvidenceLink>;
   deleteEvidenceLink(id: number): Promise<boolean>;
+
+  // Documents
+  createDocument(data: InsertDocument): Promise<Document>;
+  getDocument(id: number): Promise<Document | undefined>;
+  updateDocument(id: number, data: Partial<Document>): Promise<Document | undefined>;
+  deleteDocument(id: number): Promise<boolean>;
+  getDocumentByHash(fileHash: string): Promise<Document | undefined>;
+  getAllDocuments(options?: { search?: string; type?: string; page?: number; limit?: number }): Promise<{ documents: Document[]; total: number }>;
+  getDocumentStats(): Promise<DocumentStats>;
+
+  // Document Chunks
+  createDocumentChunks(documentId: number, chunks: Omit<InsertDocumentChunk, "documentId">[]): Promise<DocumentChunk[]>;
+  getDocumentChunks(documentId: number): Promise<DocumentChunk[]>;
+
+  // Document-Control Links
+  createDocumentControlLink(data: InsertDocumentControlLink): Promise<DocumentControlLink>;
+  deleteDocumentControlLink(documentId: number, orgControlId: number): Promise<boolean>;
+  getDocumentsByOrgControl(orgControlId: number): Promise<Document[]>;
+  getDocumentControlLink(documentId: number, orgControlId: number): Promise<DocumentControlLink | undefined>;
+  updateDocumentControlLink(id: number, data: Partial<DocumentControlLink>): Promise<DocumentControlLink | undefined>;
+
+  // Document Question Matches
+  createDocumentQuestionMatch(data: InsertDocumentQuestionMatch): Promise<DocumentQuestionMatch>;
+  softDeleteMatchesByDocumentAndControl(documentId: number, orgControlId: number): Promise<number>;
+  getActiveMatchesByOrgControl(orgControlId: number): Promise<DocumentQuestionMatch[]>;
+  acceptSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined>;
+  dismissSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined>;
+  getMatchById(matchId: number): Promise<DocumentQuestionMatch | undefined>;
+
+  // Response Change Log
+  createResponseChangeLog(data: InsertResponseChangeLog): Promise<ResponseChangeLogEntry>;
+  getResponseHistory(orgControlId: number, questionId: number): Promise<ResponseChangeLogEntry[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -530,6 +569,9 @@ export class DatabaseStorage implements IStorage {
       testerName: run.tester.name,
     }));
 
+    // Document coverage statistics
+    const docStats = await this.getDocumentStats();
+
     return {
       totalControls,
       applicableControls: applicableCount,
@@ -552,6 +594,7 @@ export class DatabaseStorage implements IStorage {
       dueSoon,
       recentActivity,
       recentTestRuns,
+      documentStats: docStats,
     };
   }
 
@@ -657,6 +700,297 @@ export class DatabaseStorage implements IStorage {
   async deleteEvidenceLink(id: number): Promise<boolean> {
     const result = await db.delete(evidenceLinks).where(eq(evidenceLinks.id, id)).returning();
     return result.length > 0;
+  }
+
+  // ─── Documents ──────────────────────────────────────────────────────────────
+
+  async createDocument(data: InsertDocument): Promise<Document> {
+    const [doc] = await db.insert(documents).values(data).returning();
+    return doc;
+  }
+
+  async getDocument(id: number): Promise<Document | undefined> {
+    const [doc] = await db.select().from(documents).where(eq(documents.id, id));
+    return doc || undefined;
+  }
+
+  async updateDocument(id: number, data: Partial<Document>): Promise<Document | undefined> {
+    const [doc] = await db
+      .update(documents)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(documents.id, id))
+      .returning();
+    return doc || undefined;
+  }
+
+  async deleteDocument(id: number): Promise<boolean> {
+    // RESTRICT deletes on documentControlLinks and documentQuestionMatches
+    // will cause this to fail if the document is still linked — which is intended
+    const result = await db.delete(documents).where(eq(documents.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getDocumentByHash(fileHash: string): Promise<Document | undefined> {
+    const [doc] = await db.select().from(documents).where(eq(documents.fileHash, fileHash));
+    return doc || undefined;
+  }
+
+  async getAllDocuments(options?: { search?: string; type?: string; page?: number; limit?: number }): Promise<{ documents: Document[]; total: number }> {
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+    if (options?.search) {
+      conditions.push(
+        or(
+          ilike(documents.title, `%${options.search}%`),
+          ilike(documents.originalFilename, `%${options.search}%`),
+        )
+      );
+    }
+    if (options?.type) {
+      conditions.push(eq(documents.evidenceType, options.type as any));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [totalResult, docs] = await Promise.all([
+      db.select({ count: count() }).from(documents).where(whereClause),
+      db
+        .select()
+        .from(documents)
+        .where(whereClause)
+        .orderBy(desc(documents.createdAt))
+        .limit(limit)
+        .offset(offset),
+    ]);
+
+    return {
+      documents: docs,
+      total: totalResult[0]?.count || 0,
+    };
+  }
+
+  async getDocumentStats(): Promise<DocumentStats> {
+    // Total documents and file size
+    const [docAgg] = await db
+      .select({
+        totalDocuments: count(),
+        totalFileSize: sum(documents.fileSize),
+      })
+      .from(documents);
+
+    // Documents by evidence type
+    const typeRows = await db
+      .select({
+        evidenceType: documents.evidenceType,
+        count: count(),
+      })
+      .from(documents)
+      .groupBy(documents.evidenceType);
+
+    const documentsByType: Record<string, number> = {};
+    for (const row of typeRows) {
+      documentsByType[row.evidenceType || "UNTYPED"] = row.count;
+    }
+
+    // Controls with evidence (controls that have at least one document linked)
+    const controlsWithDocs = await db
+      .selectDistinct({ orgControlId: documentControlLinks.organisationControlId })
+      .from(documentControlLinks);
+    const controlsWithEvidence = controlsWithDocs.length;
+
+    // Pending suggestions (matches awaiting user review)
+    const [pendingResult] = await db
+      .select({ count: count() })
+      .from(documentQuestionMatches)
+      .where(
+        and(
+          eq(documentQuestionMatches.isActive, true),
+          isNull(documentQuestionMatches.userAccepted),
+        )
+      );
+
+    // Controls with gaps: applicable controls that have NO document matches at all
+    // (or only weak matches). Count applicable controls minus those with evidence.
+    const [totalApplicable] = await db
+      .select({ count: count() })
+      .from(organisationControls)
+      .where(eq(organisationControls.isApplicable, true));
+    const controlsWithGaps = Math.max(0, (totalApplicable?.count || 0) - controlsWithEvidence);
+
+    return {
+      totalDocuments: docAgg?.totalDocuments || 0,
+      totalFileSize: Number(docAgg?.totalFileSize) || 0,
+      controlsWithEvidence,
+      controlsWithGaps,
+      documentsByType,
+      pendingSuggestions: pendingResult?.count || 0,
+    };
+  }
+
+  // ─── Document Chunks ────────────────────────────────────────────────────────
+
+  async createDocumentChunks(documentId: number, chunks: Omit<InsertDocumentChunk, "documentId">[]): Promise<DocumentChunk[]> {
+    if (chunks.length === 0) return [];
+    const values = chunks.map((chunk) => ({ ...chunk, documentId }));
+    return db.insert(documentChunks).values(values).returning();
+  }
+
+  async getDocumentChunks(documentId: number): Promise<DocumentChunk[]> {
+    return db
+      .select()
+      .from(documentChunks)
+      .where(eq(documentChunks.documentId, documentId))
+      .orderBy(asc(documentChunks.chunkIndex));
+  }
+
+  // ─── Document-Control Links ─────────────────────────────────────────────────
+
+  async createDocumentControlLink(data: InsertDocumentControlLink): Promise<DocumentControlLink> {
+    const [link] = await db.insert(documentControlLinks).values(data).returning();
+    return link;
+  }
+
+  async deleteDocumentControlLink(documentId: number, orgControlId: number): Promise<boolean> {
+    const result = await db
+      .delete(documentControlLinks)
+      .where(
+        and(
+          eq(documentControlLinks.documentId, documentId),
+          eq(documentControlLinks.organisationControlId, orgControlId),
+        )
+      )
+      .returning();
+    return result.length > 0;
+  }
+
+  async getDocumentsByOrgControl(orgControlId: number): Promise<Document[]> {
+    const links = await db
+      .select({ documentId: documentControlLinks.documentId })
+      .from(documentControlLinks)
+      .where(eq(documentControlLinks.organisationControlId, orgControlId));
+
+    if (links.length === 0) return [];
+
+    const docIds = links.map((l) => l.documentId);
+    return db
+      .select()
+      .from(documents)
+      .where(inArray(documents.id, docIds))
+      .orderBy(desc(documents.createdAt));
+  }
+
+  async getDocumentControlLink(documentId: number, orgControlId: number): Promise<DocumentControlLink | undefined> {
+    const [link] = await db
+      .select()
+      .from(documentControlLinks)
+      .where(
+        and(
+          eq(documentControlLinks.documentId, documentId),
+          eq(documentControlLinks.organisationControlId, orgControlId),
+        )
+      );
+    return link || undefined;
+  }
+
+  async updateDocumentControlLink(id: number, data: Partial<DocumentControlLink>): Promise<DocumentControlLink | undefined> {
+    const [link] = await db
+      .update(documentControlLinks)
+      .set(data)
+      .where(eq(documentControlLinks.id, id))
+      .returning();
+    return link || undefined;
+  }
+
+  // ─── Document Question Matches ──────────────────────────────────────────────
+
+  async createDocumentQuestionMatch(data: InsertDocumentQuestionMatch): Promise<DocumentQuestionMatch> {
+    const [match] = await db.insert(documentQuestionMatches).values(data).returning();
+    return match;
+  }
+
+  async softDeleteMatchesByDocumentAndControl(documentId: number, orgControlId: number): Promise<number> {
+    const result = await db
+      .update(documentQuestionMatches)
+      .set({ isActive: false })
+      .where(
+        and(
+          eq(documentQuestionMatches.documentId, documentId),
+          eq(documentQuestionMatches.organisationControlId, orgControlId),
+          eq(documentQuestionMatches.isActive, true),
+        )
+      )
+      .returning();
+    return result.length;
+  }
+
+  async getActiveMatchesByOrgControl(orgControlId: number): Promise<DocumentQuestionMatch[]> {
+    return db
+      .select()
+      .from(documentQuestionMatches)
+      .where(
+        and(
+          eq(documentQuestionMatches.organisationControlId, orgControlId),
+          eq(documentQuestionMatches.isActive, true),
+        )
+      )
+      .orderBy(desc(documentQuestionMatches.compositeScore));
+  }
+
+  async acceptSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined> {
+    const [match] = await db
+      .update(documentQuestionMatches)
+      .set({
+        userAccepted: true,
+        acceptedAt: new Date(),
+        acceptedByUserId: userId,
+      })
+      .where(eq(documentQuestionMatches.id, matchId))
+      .returning();
+    return match || undefined;
+  }
+
+  async dismissSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined> {
+    const [match] = await db
+      .update(documentQuestionMatches)
+      .set({
+        userAccepted: false,
+        acceptedAt: new Date(),
+        acceptedByUserId: userId,
+      })
+      .where(eq(documentQuestionMatches.id, matchId))
+      .returning();
+    return match || undefined;
+  }
+
+  async getMatchById(matchId: number): Promise<DocumentQuestionMatch | undefined> {
+    const [match] = await db
+      .select()
+      .from(documentQuestionMatches)
+      .where(eq(documentQuestionMatches.id, matchId));
+    return match || undefined;
+  }
+
+  // ─── Response Change Log ────────────────────────────────────────────────────
+
+  async createResponseChangeLog(data: InsertResponseChangeLog): Promise<ResponseChangeLogEntry> {
+    const [entry] = await db.insert(responseChangeLog).values(data).returning();
+    return entry;
+  }
+
+  async getResponseHistory(orgControlId: number, questionId: number): Promise<ResponseChangeLogEntry[]> {
+    return db
+      .select()
+      .from(responseChangeLog)
+      .where(
+        and(
+          eq(responseChangeLog.organisationControlId, orgControlId),
+          eq(responseChangeLog.questionId, questionId),
+        )
+      )
+      .orderBy(desc(responseChangeLog.createdAt));
   }
 }
 

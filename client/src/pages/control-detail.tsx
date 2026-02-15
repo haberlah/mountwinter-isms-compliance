@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { ControlDetailSkeleton } from "@/components/loading-skeleton";
 import { StatusBadge, ApplicabilityBadge, FrequencyBadge } from "@/components/status-badge";
+import { ControlDocumentsSection } from "@/components/ControlDocumentsSection";
 import { PersonaSelector, type PersonaOrAll } from "@/components/PersonaSelector";
 import { QuestionCard } from "@/components/QuestionCard";
 import { ProgressSection } from "@/components/ProgressSection";
@@ -35,7 +36,8 @@ import {
   Table2,
   File
 } from "lucide-react";
-import type { Control, ControlCategory, OrganisationControl, TestRun, EvidenceLink, Persona, OntologyQuestion, ImplementationResponses, QuestionResponse, ControlQuestionnaire } from "@shared/schema";
+import { EvidenceGapSummary } from "@/components/EvidenceGapSummary";
+import type { Control, ControlCategory, OrganisationControl, TestRun, EvidenceLink, Persona, OntologyQuestion, ImplementationResponses, QuestionResponse, ControlQuestionnaire, DocumentQuestionMatch } from "@shared/schema";
 import { format } from "date-fns";
 
 type TestRunWithEvidence = TestRun & {
@@ -412,6 +414,12 @@ export default function ControlDetail() {
             </CardContent>
           </Card>
 
+          <ControlDocumentsSection
+            organisationControlId={orgControl?.id}
+            controlNumber={control.controlNumber}
+            controlId={control.id}
+          />
+
           <ControlSettingsCard control={control} orgControl={orgControl} />
         </div>
       </div>
@@ -429,7 +437,57 @@ function QuestionnaireTab({
   const { toast } = useToast();
   const questionnaire = control.aiQuestionnaire as ControlQuestionnaire;
   const questions = questionnaire?.questions || [];
-  
+
+  // Fetch AI-generated document↔question matches for this control
+  const { data: questionMatches } = useQuery<DocumentQuestionMatch[]>({
+    queryKey: ["/api/organisation-controls", String(orgControl?.id), "question-matches"],
+    enabled: !!orgControl?.id,
+  });
+
+  const allMatches = questionMatches || [];
+
+  // Compute evidence status per question and aggregate counts
+  const { evidenceStatusMap, questionsWithEvidence, totalPendingSuggestions } = useMemo(() => {
+    const statusMap: Record<number, "none" | "partial" | "full"> = {};
+    const withEvidence = new Set<number>();
+    let pendingCount = 0;
+
+    for (const q of questions) {
+      const qMatches = allMatches.filter(
+        (m) => m.questionId === q.question_id && m.isActive
+      );
+
+      if (qMatches.length === 0) {
+        statusMap[q.question_id] = "none";
+        continue;
+      }
+
+      // Check for accepted strong matches
+      const hasAcceptedStrong = qMatches.some(
+        (m) => m.userAccepted === true && m.compositeScore >= 0.85
+      );
+
+      if (hasAcceptedStrong) {
+        statusMap[q.question_id] = "full";
+        withEvidence.add(q.question_id);
+      } else {
+        statusMap[q.question_id] = "partial";
+      }
+
+      // Count pending strong suggestions for this question
+      const qPending = qMatches.filter(
+        (m) => m.userAccepted === null && m.compositeScore >= 0.7
+      ).length;
+      pendingCount += qPending;
+    }
+
+    return {
+      evidenceStatusMap: statusMap,
+      questionsWithEvidence: withEvidence,
+      totalPendingSuggestions: pendingCount,
+    };
+  }, [questions, allMatches]);
+
   const [selectedPersona, setSelectedPersona] = useState<PersonaOrAll>(
     (orgControl?.selectedPersona as Persona) || "Auditor"
   );
@@ -616,9 +674,18 @@ function QuestionnaireTab({
     <div className="space-y-4">
       {questionsToRender.map((q, index) => {
         // When in "All" mode, use the question's primary persona; otherwise use selected persona
-        const displayPersona: Persona = isAllMode 
-          ? (q.primary_persona || "Auditor") 
+        const displayPersona: Persona = isAllMode
+          ? (q.primary_persona || "Auditor")
           : (selectedPersona as Persona);
+
+        // Per-question evidence props
+        const qMatches = allMatches.filter(
+          (m) => m.questionId === q.question_id && m.isActive
+        );
+        const qPendingSuggestions = qMatches.filter(
+          (m) => m.userAccepted === null && m.compositeScore >= 0.7
+        ).length;
+
         return (
           <QuestionCard
             key={q.question_id}
@@ -629,6 +696,9 @@ function QuestionnaireTab({
             onResponseChange={handleResponseChange}
             organisationControlId={orgControl?.id}
             saveStatus={saveStatuses[q.question_id] || "idle"}
+            questionMatches={allMatches}
+            evidenceStatus={evidenceStatusMap[q.question_id]}
+            pendingSuggestions={qPendingSuggestions}
           />
         );
       })}
@@ -672,6 +742,16 @@ function QuestionnaireTab({
           </div>
         </CardContent>
       </Card>
+
+      {/* Evidence coverage summary — shows document-to-question match status */}
+      {orgControl?.id && allMatches.length > 0 && (
+        <EvidenceGapSummary
+          totalQuestions={questions.length}
+          questionMatches={allMatches}
+          questionsWithEvidence={questionsWithEvidence}
+          pendingSuggestions={totalPendingSuggestions}
+        />
+      )}
 
       {!isAllMode ? (
         filteredQuestions.length > 0 ? (

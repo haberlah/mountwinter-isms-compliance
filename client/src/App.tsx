@@ -11,6 +11,7 @@ import Controls from "@/pages/controls";
 import ControlDetail from "@/pages/control-detail";
 import RecordTest from "@/pages/record-test";
 import Settings from "@/pages/settings";
+import Documents from "@/pages/documents";
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/controls" component={Controls} />
       <Route path="/controls/:controlNumber" component={ControlDetail} />
       <Route path="/controls/:controlNumber/test" component={RecordTest} />
+      <Route path="/documents" component={Documents} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
@@ -31,6 +33,7 @@ function PageTitle() {
   const titles: Record<string, string> = {
     "/": "Dashboard",
     "/controls": "Controls",
+    "/documents": "Documents",
     "/settings": "Settings",
   };
   

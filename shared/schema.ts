@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, pgEnum, real, date, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, pgEnum, real, date, serial, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -8,11 +8,12 @@ export const userRoleEnum = pgEnum("user_role", ["admin", "compliance_officer", 
 export const frequencyEnum = pgEnum("frequency", ["Annual", "Quarterly", "Monthly"]);
 export const quarterEnum = pgEnum("quarter", ["Q1", "Q2", "Q3", "Q4"]);
 export const testStatusEnum = pgEnum("test_status", ["Pass", "PassPrevious", "Fail", "Blocked", "NotAttempted", "ContinualImprovement"]);
-export const interactionTypeEnum = pgEnum("interaction_type", ["questionnaire_generation", "response_review", "test_analysis", "ontology_load"]);
+export const interactionTypeEnum = pgEnum("interaction_type", ["questionnaire_generation", "response_review", "test_analysis", "ontology_load", "document_analysis"]);
 export const aiContextScopeEnum = pgEnum("ai_context_scope", ["current_only", "last_3", "all_history"]);
 export const personaEnum = pgEnum("persona", ["Auditor", "Advisor", "Analyst"]);
 export const riskAppetiteEnum = pgEnum("risk_appetite", ["Conservative", "Moderate", "Aggressive"]);
 export const evidenceTypeEnum = pgEnum("evidence_type", ["REGISTER", "RECORD", "POLICY", "MATRIX", "DOCUMENT", "OTHER"]);
+export const documentStatusEnum = pgEnum("document_status", ["pending", "extracting", "extracted", "analysing", "analysed", "error"]);
 
 // Persona types
 export const personaValues = ['Auditor', 'Advisor', 'Analyst'] as const;
@@ -167,9 +168,112 @@ export const evidenceLinks = pgTable("evidence_links", {
   url: text("url"),
   evidenceType: evidenceTypeEnum("evidence_type"),
   description: text("description"),
+  documentId: integer("document_id").references(() => documents.id),
   addedByUserId: integer("added_by_user_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Documents (central document repository)
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  originalFilename: text("original_filename").notNull(),
+  s3Key: text("s3_key").notNull(),
+  s3Bucket: text("s3_bucket").notNull(),
+  mimeType: varchar("mime_type", { length: 100 }).notNull(),
+  fileSize: integer("file_size").notNull(),
+  fileHash: varchar("file_hash", { length: 64 }).notNull(),
+  documentDate: timestamp("document_date"),
+  evidenceType: evidenceTypeEnum("evidence_type"),
+  description: text("description"),
+  extractedText: text("extracted_text"),
+  extractionStatus: documentStatusEnum("extraction_status").default("pending").notNull(),
+  extractionError: text("extraction_error"),
+  pageCount: integer("page_count"),
+  uploadedByUserId: integer("uploaded_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_documents_file_hash").on(table.fileHash),
+  index("idx_documents_evidence_type").on(table.evidenceType),
+  index("idx_documents_uploaded_by").on(table.uploadedByUserId),
+  index("idx_documents_extraction_status").on(table.extractionStatus),
+]);
+
+// Document Chunks (chunked text for large documents)
+export const documentChunks = pgTable("document_chunks", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  chunkIndex: integer("chunk_index").notNull(),
+  content: text("content").notNull(),
+  tokenCount: integer("token_count"),
+  charStart: integer("char_start").notNull(),
+  charEnd: integer("char_end").notNull(),
+  sectionHeading: text("section_heading"),
+}, (table) => [
+  index("idx_doc_chunks_document_id").on(table.documentId),
+  index("idx_doc_chunks_document_index").on(table.documentId, table.chunkIndex),
+]);
+
+// Document-Control Links (many-to-many documents ↔ organisation controls)
+export const documentControlLinks = pgTable("document_control_links", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "restrict" }),
+  organisationControlId: integer("organisation_control_id").notNull().references(() => organisationControls.id, { onDelete: "restrict" }),
+  linkedByUserId: integer("linked_by_user_id").notNull().references(() => users.id),
+  analysisStatus: documentStatusEnum("analysis_status").default("pending").notNull(),
+  analysisCompletedAt: timestamp("analysis_completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_dcl_unique_doc_control").on(table.documentId, table.organisationControlId),
+  index("idx_dcl_document_id").on(table.documentId),
+  index("idx_dcl_org_control_id").on(table.organisationControlId),
+]);
+
+// Document Question Matches (AI-generated document-to-question mappings — INSERT-only, immutable)
+export const documentQuestionMatches = pgTable("document_question_matches", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "restrict" }),
+  organisationControlId: integer("organisation_control_id").notNull().references(() => organisationControls.id),
+  questionId: integer("question_id").notNull(),
+  contentRelevance: real("content_relevance").notNull(),
+  evidenceTypeMatch: boolean("evidence_type_match").notNull(),
+  specificity: real("specificity").notNull(),
+  compositeScore: real("composite_score").notNull(),
+  matchedPassage: text("matched_passage"),
+  aiSummary: text("ai_summary"),
+  suggestedResponse: text("suggested_response"),
+  userAccepted: boolean("user_accepted"),
+  acceptedAt: timestamp("accepted_at"),
+  acceptedByUserId: integer("accepted_by_user_id").references(() => users.id),
+  isCrossControl: boolean("is_cross_control").default(false).notNull(),
+  sourceControlId: integer("source_control_id"),
+  chunkId: integer("chunk_id").references(() => documentChunks.id),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_dqm_document_id").on(table.documentId),
+  index("idx_dqm_org_control_id").on(table.organisationControlId),
+  index("idx_dqm_question_id").on(table.questionId),
+  index("idx_dqm_composite_score").on(table.compositeScore),
+  index("idx_dqm_org_control_active").on(table.organisationControlId, table.isActive),
+]);
+
+// Response Change Log (immutable audit trail for questionnaire response changes)
+export const responseChangeLog = pgTable("response_change_log", {
+  id: serial("id").primaryKey(),
+  organisationControlId: integer("organisation_control_id").notNull().references(() => organisationControls.id),
+  questionId: integer("question_id").notNull(),
+  previousResponse: text("previous_response"),
+  newResponse: text("new_response").notNull(),
+  changeSource: varchar("change_source", { length: 50 }).notNull(),
+  sourceDocumentId: integer("source_document_id").references(() => documents.id),
+  sourceMatchId: integer("source_match_id").references(() => documentQuestionMatches.id),
+  changedByUserId: integer("changed_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_rcl_org_control_question").on(table.organisationControlId, table.questionId),
+]);
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -177,6 +281,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   testRuns: many(testRuns),
   aiInteractions: many(aiInteractions),
   evidenceLinks: many(evidenceLinks),
+  uploadedDocuments: many(documents),
 }));
 
 export const controlCategoriesRelations = relations(controlCategories, ({ many }) => ({
@@ -203,6 +308,9 @@ export const organisationControlsRelations = relations(organisationControls, ({ 
   }),
   testRuns: many(testRuns),
   evidenceLinks: many(evidenceLinks),
+  documentControlLinks: many(documentControlLinks),
+  documentQuestionMatches: many(documentQuestionMatches),
+  responseChangeLogs: many(responseChangeLog),
 }));
 
 export const testRunsRelations = relations(testRuns, ({ one, many }) => ({
@@ -245,6 +353,82 @@ export const evidenceLinksRelations = relations(evidenceLinks, ({ one }) => ({
     fields: [evidenceLinks.addedByUserId],
     references: [users.id],
   }),
+  document: one(documents, {
+    fields: [evidenceLinks.documentId],
+    references: [documents.id],
+  }),
+}));
+
+// Document relations
+export const documentsRelations = relations(documents, ({ one, many }) => ({
+  uploadedBy: one(users, {
+    fields: [documents.uploadedByUserId],
+    references: [users.id],
+  }),
+  chunks: many(documentChunks),
+  controlLinks: many(documentControlLinks),
+  questionMatches: many(documentQuestionMatches),
+  evidenceLinks: many(evidenceLinks),
+}));
+
+export const documentChunksRelations = relations(documentChunks, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentChunks.documentId],
+    references: [documents.id],
+  }),
+}));
+
+export const documentControlLinksRelations = relations(documentControlLinks, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentControlLinks.documentId],
+    references: [documents.id],
+  }),
+  organisationControl: one(organisationControls, {
+    fields: [documentControlLinks.organisationControlId],
+    references: [organisationControls.id],
+  }),
+  linkedBy: one(users, {
+    fields: [documentControlLinks.linkedByUserId],
+    references: [users.id],
+  }),
+}));
+
+export const documentQuestionMatchesRelations = relations(documentQuestionMatches, ({ one }) => ({
+  document: one(documents, {
+    fields: [documentQuestionMatches.documentId],
+    references: [documents.id],
+  }),
+  organisationControl: one(organisationControls, {
+    fields: [documentQuestionMatches.organisationControlId],
+    references: [organisationControls.id],
+  }),
+  chunk: one(documentChunks, {
+    fields: [documentQuestionMatches.chunkId],
+    references: [documentChunks.id],
+  }),
+  acceptedBy: one(users, {
+    fields: [documentQuestionMatches.acceptedByUserId],
+    references: [users.id],
+  }),
+}));
+
+export const responseChangeLogRelations = relations(responseChangeLog, ({ one }) => ({
+  organisationControl: one(organisationControls, {
+    fields: [responseChangeLog.organisationControlId],
+    references: [organisationControls.id],
+  }),
+  sourceDocument: one(documents, {
+    fields: [responseChangeLog.sourceDocumentId],
+    references: [documents.id],
+  }),
+  sourceMatch: one(documentQuestionMatches, {
+    fields: [responseChangeLog.sourceMatchId],
+    references: [documentQuestionMatches.id],
+  }),
+  changedBy: one(users, {
+    fields: [responseChangeLog.changedByUserId],
+    references: [users.id],
+  }),
 }));
 
 // Insert schemas
@@ -256,6 +440,11 @@ export const insertTestRunSchema = createInsertSchema(testRuns).omit({ id: true,
 export const insertAiInteractionSchema = createInsertSchema(aiInteractions).omit({ id: true, createdAt: true });
 export const insertOrganisationProfileSchema = createInsertSchema(organisationProfile).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEvidenceLinkSchema = createInsertSchema(evidenceLinks).omit({ id: true, createdAt: true });
+export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDocumentChunkSchema = createInsertSchema(documentChunks).omit({ id: true });
+export const insertDocumentControlLinkSchema = createInsertSchema(documentControlLinks).omit({ id: true, createdAt: true });
+export const insertDocumentQuestionMatchSchema = createInsertSchema(documentQuestionMatches).omit({ id: true, createdAt: true });
+export const insertResponseChangeLogSchema = createInsertSchema(responseChangeLog).omit({ id: true, createdAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -282,6 +471,21 @@ export type RiskAppetite = 'Conservative' | 'Moderate' | 'Aggressive';
 
 export type EvidenceLink = typeof evidenceLinks.$inferSelect;
 export type InsertEvidenceLink = z.infer<typeof insertEvidenceLinkSchema>;
+
+export type Document = typeof documents.$inferSelect;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+
+export type DocumentChunk = typeof documentChunks.$inferSelect;
+export type InsertDocumentChunk = z.infer<typeof insertDocumentChunkSchema>;
+
+export type DocumentControlLink = typeof documentControlLinks.$inferSelect;
+export type InsertDocumentControlLink = z.infer<typeof insertDocumentControlLinkSchema>;
+
+export type DocumentQuestionMatch = typeof documentQuestionMatches.$inferSelect;
+export type InsertDocumentQuestionMatch = z.infer<typeof insertDocumentQuestionMatchSchema>;
+
+export type ResponseChangeLogEntry = typeof responseChangeLog.$inferSelect;
+export type InsertResponseChangeLog = z.infer<typeof insertResponseChangeLogSchema>;
 
 export type ControlApplicability = {
   controlId: number;
@@ -354,6 +558,14 @@ export type DashboardStats = {
     testerName: string;
   }>;
   recentTestRuns: TestRunWithDetails[];
+  documentStats?: {
+    totalDocuments: number;
+    totalFileSize: number;
+    controlsWithEvidence: number;
+    controlsWithGaps: number;
+    documentsByType: Record<string, number>;
+    pendingSuggestions: number;
+  };
 };
 
 export type ControlsStats = {
@@ -373,4 +585,18 @@ export type ControlWithLatestTest = Control & {
 
 export type TestRunWithEvidence = TestRun & {
   evidenceLinks?: EvidenceLink[];
+};
+
+export type DocumentWithLinks = Document & {
+  controlLinks?: DocumentControlLink[];
+  uploadedBy?: User;
+};
+
+export type DocumentStats = {
+  totalDocuments: number;
+  totalFileSize: number;
+  controlsWithEvidence: number;
+  controlsWithGaps: number;
+  documentsByType: Record<string, number>;
+  pendingSuggestions: number;
 };

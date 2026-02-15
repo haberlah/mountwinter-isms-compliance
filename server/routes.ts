@@ -2,10 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { seedDatabase } from "./seed";
-import { generateQuestionnaire, analyzeTestResponse, DEFAULT_MODEL, AIConfigurationError, checkAIConfiguration, streamAnalysis, type OntologyQuestion as AIQuestion, type QuestionResponse as AIQuestionResponse, type TestRunHistory } from "./ai";
-import { insertTestRunSchema, type Persona, type ImplementationResponses, type QuestionResponse } from "@shared/schema";
+import { generateQuestionnaire, analyzeTestResponse, DEFAULT_MODEL, AIConfigurationError, checkAIConfiguration, streamAnalysis, buildOrganisationContextSection, type OntologyQuestion as AIQuestion, type QuestionResponse as AIQuestionResponse, type TestRunHistory } from "./ai";
+import { insertTestRunSchema, type Persona, type ImplementationResponses, type QuestionResponse, type ControlQuestionnaire, type OntologyQuestion } from "@shared/schema";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
+import { upload } from "./upload";
+import { isS3Configured, generateS3Key, uploadToS3, getDownloadUrl, deleteFromS3, checkS3Connection } from "./s3";
+import { computeFileHash, extractText, sanitiseTextForAI, chunkText } from "./document-processor";
+import { analyseDocumentForControl, type DocumentChunkInput } from "./document-analyser";
 
 const personaSchema = z.enum(["Auditor", "Advisor", "Analyst"]);
 
@@ -34,6 +38,1112 @@ export async function registerRoutes(
   } else {
     console.log("✓ AI service configured");
   }
+
+  // Check S3 configuration on startup
+  if (isS3Configured()) {
+    try {
+      await checkS3Connection();
+      console.log("✓ S3 storage configured");
+    } catch (error) {
+      console.warn("⚠️  S3 Configuration Warning:", (error as Error).message);
+      console.warn("   Document upload features will not work until this is resolved.");
+    }
+  } else {
+    console.warn("⚠️  S3 not configured — document upload features disabled");
+  }
+
+  // ─── Document Repository CRUD ──────────────────────────────────────────────
+
+  // Upload documents to central repository
+  app.post("/api/documents/upload", upload.array("files", 10), async (req, res) => {
+    try {
+      if (!isS3Configured()) {
+        return res.status(503).json({ error: "Document storage is not configured" });
+      }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files provided" });
+      }
+
+      const user = await storage.getOrCreateDefaultUser();
+      const results: any[] = [];
+
+      for (const file of files) {
+        // Compute hash for deduplication
+        const fileHash = computeFileHash(file.buffer);
+        const existing = await storage.getDocumentByHash(fileHash);
+
+        if (existing) {
+          results.push({ document: existing, isDuplicate: true });
+          continue;
+        }
+
+        // Upload to S3 first
+        const s3Key = generateS3Key(file.originalname);
+        await uploadToS3(file.buffer, s3Key, file.mimetype);
+
+        try {
+          // Create DB record
+          const document = await storage.createDocument({
+            title: req.body.title || file.originalname.replace(/\.[^.]+$/, ""),
+            originalFilename: file.originalname,
+            s3Key,
+            s3Bucket: process.env.S3_BUCKET || "",
+            mimeType: file.mimetype,
+            fileSize: file.size,
+            fileHash,
+            evidenceType: req.body.evidenceType || null,
+            description: req.body.description || null,
+            documentDate: req.body.documentDate ? new Date(req.body.documentDate) : null,
+            uploadedByUserId: user.id,
+            extractionStatus: "pending",
+          });
+
+          // Extract text asynchronously (non-blocking for the response)
+          try {
+            await storage.updateDocument(document.id, { extractionStatus: "extracting" });
+            const { text, pageCount } = await extractText(file.buffer, file.mimetype);
+            const sanitisedText = sanitiseTextForAI(text, file.originalname);
+
+            // Chunk the text
+            const chunks = chunkText(sanitisedText);
+            await storage.createDocumentChunks(
+              document.id,
+              chunks.map((c) => ({
+                chunkIndex: c.chunkIndex,
+                content: c.content,
+                tokenCount: c.tokenCount,
+                charStart: c.charStart,
+                charEnd: c.charEnd,
+                sectionHeading: c.sectionHeading,
+              }))
+            );
+
+            await storage.updateDocument(document.id, {
+              extractedText: sanitisedText,
+              extractionStatus: "extracted",
+              pageCount: pageCount || null,
+            });
+
+            const updatedDoc = await storage.getDocument(document.id);
+            results.push({ document: updatedDoc || document, isDuplicate: false });
+          } catch (extractError) {
+            console.error(`[Routes] Text extraction failed for "${file.originalname}":`, extractError);
+            await storage.updateDocument(document.id, {
+              extractionStatus: "error",
+              extractionError: (extractError as Error).message,
+            });
+            results.push({ document: await storage.getDocument(document.id), isDuplicate: false });
+          }
+        } catch (dbError) {
+          // Clean up S3 object if DB insert fails
+          console.error(`[Routes] DB insert failed, cleaning up S3 key "${s3Key}":`, dbError);
+          await deleteFromS3(s3Key).catch(() => {});
+          throw dbError;
+        }
+      }
+
+      res.status(201).json({ documents: results });
+    } catch (error) {
+      console.error("Error uploading documents:", error);
+      res.status(500).json({ error: "Failed to upload documents" });
+    }
+  });
+
+  // List all documents with search, filtering, and pagination
+  app.get("/api/documents", async (req, res) => {
+    try {
+      const search = req.query.search as string | undefined;
+      const type = req.query.type as string | undefined;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+
+      const { documents, total } = await storage.getAllDocuments({ search, type, page, limit });
+      res.json({ documents, total, page, limit, totalPages: Math.ceil(total / limit) });
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  // Document repository statistics
+  app.get("/api/documents/stats", async (req, res) => {
+    try {
+      const stats = await storage.getDocumentStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching document stats:", error);
+      res.status(500).json({ error: "Failed to fetch document statistics" });
+    }
+  });
+
+  // Get single document details
+  app.get("/api/documents/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid document ID" });
+      }
+
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Add staleness warning if documentDate > 12 months old
+      const staleWarning =
+        document.documentDate &&
+        Date.now() - new Date(document.documentDate).getTime() > 365 * 24 * 60 * 60 * 1000;
+
+      res.json({ ...document, staleWarning: !!staleWarning });
+    } catch (error) {
+      console.error("Error fetching document:", error);
+      res.status(500).json({ error: "Failed to fetch document" });
+    }
+  });
+
+  // Download document (presigned S3 URL redirect)
+  app.get("/api/documents/:id/download", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid document ID" });
+      }
+
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      const url = await getDownloadUrl(document.s3Key);
+      res.redirect(url);
+    } catch (error) {
+      console.error("Error generating download URL:", error);
+      res.status(500).json({ error: "Failed to generate download URL" });
+    }
+  });
+
+  // Update document metadata
+  app.patch("/api/documents/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid document ID" });
+      }
+
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      const { title, documentDate, evidenceType, description } = req.body;
+      const updated = await storage.updateDocument(id, {
+        ...(title !== undefined && { title }),
+        ...(documentDate !== undefined && { documentDate: documentDate ? new Date(documentDate) : null }),
+        ...(evidenceType !== undefined && { evidenceType }),
+        ...(description !== undefined && { description }),
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating document:", error);
+      res.status(500).json({ error: "Failed to update document" });
+    }
+  });
+
+  // Delete document (fails if linked to controls due to RESTRICT)
+  app.delete("/api/documents/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid document ID" });
+      }
+
+      const document = await storage.getDocument(id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      try {
+        const deleted = await storage.deleteDocument(id);
+        if (deleted) {
+          // Clean up S3 object
+          await deleteFromS3(document.s3Key).catch((e) =>
+            console.warn(`[Routes] Failed to delete S3 object "${document.s3Key}":`, e)
+          );
+        }
+        res.json({ success: true });
+      } catch (deleteError: any) {
+        // RESTRICT constraint — document is linked to controls
+        if (deleteError.code === "23503") {
+          return res.status(409).json({
+            error: "Cannot delete document while it is linked to controls. Unlink it first.",
+          });
+        }
+        throw deleteError;
+      }
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      res.status(500).json({ error: "Failed to delete document" });
+    }
+  });
+
+  // ─── Document-Control Linking & Analysis ──────────────────────────────────
+
+  // Upload documents directly to a control (upload + link + auto-analyse via SSE)
+  app.post(
+    "/api/organisation-controls/:controlId/documents/upload",
+    upload.array("files", 10),
+    async (req, res) => {
+      const controlId = parseInt(req.params.controlId as string);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      if (!isS3Configured()) {
+        return res.status(503).json({ error: "Document storage is not configured" });
+      }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files provided" });
+      }
+
+      // Ensure the organisation control exists
+      let orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        orgControl = await storage.createOrganisationControl({
+          controlId,
+          isApplicable: true,
+        });
+      }
+
+      // Get the control for questionnaire data
+      const control = await storage.getControlById(controlId);
+      if (!control) {
+        return res.status(404).json({ error: "Control not found" });
+      }
+
+      const questionnaire = control.aiQuestionnaire as ControlQuestionnaire | null;
+      if (!questionnaire || !questionnaire.questions || questionnaire.questions.length === 0) {
+        return res.status(400).json({ error: "No questionnaire generated for this control. Generate one first." });
+      }
+
+      // Set up SSE
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+
+      const user = await storage.getOrCreateDefaultUser();
+
+      try {
+        for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
+          const file = files[fileIdx];
+          res.write(
+            `event: progress\ndata: ${JSON.stringify({
+              phase: "uploading",
+              current: fileIdx + 1,
+              total: files.length,
+              message: `Uploading "${file.originalname}"...`,
+            })}\n\n`
+          );
+
+          // Compute hash for deduplication
+          const fileHash = computeFileHash(file.buffer);
+          let document = await storage.getDocumentByHash(fileHash);
+          let isDuplicate = false;
+
+          if (document) {
+            isDuplicate = true;
+            res.write(
+              `event: progress\ndata: ${JSON.stringify({
+                phase: "uploading",
+                current: fileIdx + 1,
+                total: files.length,
+                message: `"${file.originalname}" already exists — linking existing document.`,
+              })}\n\n`
+            );
+          } else {
+            // Upload to S3
+            const s3Key = generateS3Key(file.originalname);
+            await uploadToS3(file.buffer, s3Key, file.mimetype);
+
+            try {
+              document = await storage.createDocument({
+                title: file.originalname.replace(/\.[^.]+$/, ""),
+                originalFilename: file.originalname,
+                s3Key,
+                s3Bucket: process.env.S3_BUCKET || "",
+                mimeType: file.mimetype,
+                fileSize: file.size,
+                fileHash,
+                evidenceType: req.body.evidenceType || null,
+                description: null,
+                documentDate: null,
+                uploadedByUserId: user.id,
+                extractionStatus: "pending",
+              });
+            } catch (dbError) {
+              await deleteFromS3(s3Key).catch(() => {});
+              throw dbError;
+            }
+          }
+
+          // Link document to control
+          const existingLink = await storage.getDocumentControlLink(document.id, orgControl.id);
+          if (!existingLink) {
+            await storage.createDocumentControlLink({
+              documentId: document.id,
+              organisationControlId: orgControl.id,
+              linkedByUserId: user.id,
+              analysisStatus: "pending",
+            });
+          }
+
+          // Extract text if not already done
+          if (document.extractionStatus === "pending" || document.extractionStatus === "error") {
+            res.write(
+              `event: progress\ndata: ${JSON.stringify({
+                phase: "extracting",
+                current: fileIdx + 1,
+                total: files.length,
+                message: `Extracting text from "${file.originalname}"...`,
+              })}\n\n`
+            );
+
+            try {
+              await storage.updateDocument(document.id, { extractionStatus: "extracting" });
+              const buffer = isDuplicate ? file.buffer : file.buffer; // Buffer still in memory
+              const { text, pageCount } = await extractText(buffer, file.mimetype);
+              const sanitisedText = sanitiseTextForAI(text, file.originalname);
+
+              // Chunk the text
+              const textChunks = chunkText(sanitisedText);
+              await storage.createDocumentChunks(
+                document.id,
+                textChunks.map((c) => ({
+                  chunkIndex: c.chunkIndex,
+                  content: c.content,
+                  tokenCount: c.tokenCount,
+                  charStart: c.charStart,
+                  charEnd: c.charEnd,
+                  sectionHeading: c.sectionHeading,
+                }))
+              );
+
+              await storage.updateDocument(document.id, {
+                extractedText: sanitisedText,
+                extractionStatus: "extracted",
+                pageCount: pageCount || null,
+              });
+
+              document = (await storage.getDocument(document.id))!;
+            } catch (extractError) {
+              console.error(`[Routes] Extraction failed for "${file.originalname}":`, extractError);
+              await storage.updateDocument(document.id, {
+                extractionStatus: "error",
+                extractionError: (extractError as Error).message,
+              });
+              res.write(
+                `event: progress\ndata: ${JSON.stringify({
+                  phase: "extracting",
+                  current: fileIdx + 1,
+                  total: files.length,
+                  message: `Text extraction failed for "${file.originalname}" — skipping analysis.`,
+                })}\n\n`
+              );
+              continue;
+            }
+          }
+
+          // Get document chunks for analysis
+          const dbChunks = await storage.getDocumentChunks(document.id);
+          if (dbChunks.length === 0) {
+            res.write(
+              `event: progress\ndata: ${JSON.stringify({
+                phase: "analysing",
+                current: fileIdx + 1,
+                total: files.length,
+                message: `No extractable text in "${file.originalname}" — skipping analysis.`,
+              })}\n\n`
+            );
+            continue;
+          }
+
+          // Run AI analysis
+          const link = await storage.getDocumentControlLink(document.id, orgControl.id);
+          if (link) {
+            await storage.updateDocumentControlLink(link.id, { analysisStatus: "analysing" });
+          }
+
+          // Soft-delete previous matches for this document+control combination
+          await storage.softDeleteMatchesByDocumentAndControl(document.id, orgControl.id);
+
+          // Build organisation context for the AI prompt
+          const orgProfile = await storage.getOrganisationProfile();
+          const organisationContext = buildOrganisationContextSection(
+            orgProfile
+              ? {
+                  companyName: orgProfile.companyName,
+                  industry: orgProfile.industry,
+                  companySize: orgProfile.companySize,
+                  techStack: orgProfile.techStack,
+                  deploymentModel: orgProfile.deploymentModel,
+                  regulatoryRequirements: orgProfile.regulatoryRequirements,
+                  riskAppetite: orgProfile.riskAppetite,
+                  additionalContext: orgProfile.additionalContext,
+                }
+              : null
+          );
+
+          const chunkInputs: DocumentChunkInput[] = dbChunks.map((c) => ({
+            chunkIndex: c.chunkIndex,
+            content: c.content,
+            sectionHeading: c.sectionHeading,
+            chunkId: c.id,
+          }));
+
+          const { matches, totalTokensUsed, summary } = await analyseDocumentForControl(
+            document.title,
+            document.evidenceType,
+            chunkInputs,
+            questionnaire.questions as OntologyQuestion[],
+            organisationContext,
+            (progress) => {
+              res.write(`event: progress\ndata: ${JSON.stringify(progress)}\n\n`);
+            },
+            (match) => {
+              res.write(`event: match\ndata: ${JSON.stringify(match)}\n\n`);
+            }
+          );
+
+          // Save matches to DB
+          for (const match of matches) {
+            await storage.createDocumentQuestionMatch({
+              documentId: document.id,
+              organisationControlId: orgControl.id,
+              questionId: match.questionId,
+              contentRelevance: match.contentRelevance,
+              evidenceTypeMatch: match.evidenceTypeMatch,
+              specificity: match.specificity,
+              compositeScore: match.compositeScore,
+              matchedPassage: match.matchedPassage,
+              aiSummary: match.aiSummary,
+              suggestedResponse: match.suggestedResponse,
+              chunkId: match.chunkId || null,
+              isActive: true,
+              isCrossControl: false,
+            });
+          }
+
+          // Update link status
+          if (link) {
+            await storage.updateDocumentControlLink(link.id, {
+              analysisStatus: "analysed",
+              analysisCompletedAt: new Date(),
+            });
+          }
+
+          // Log AI interaction
+          await storage.createAiInteraction({
+            userId: user.id,
+            interactionType: "document_analysis",
+            controlId: control.id,
+            inputSummary: `Analysed "${document.title}" for ${control.controlNumber}`,
+            outputSummary: `${summary.strongMatches} strong, ${summary.partialMatches} partial, ${summary.weakMatches} weak matches. ${summary.evidenceGaps} gaps. ${summary.pendingSuggestions} suggestions.`,
+            modelUsed: DEFAULT_MODEL,
+            tokensUsed: totalTokensUsed,
+          });
+
+          // Send per-document complete event
+          res.write(
+            `event: document-complete\ndata: ${JSON.stringify({
+              documentId: document.id,
+              documentTitle: document.title,
+              ...summary,
+            })}\n\n`
+          );
+        }
+
+        // Send overall complete event
+        res.write(`event: complete\ndata: ${JSON.stringify({ success: true })}\n\n`);
+        res.end();
+      } catch (error) {
+        console.error("Error in document upload+analyse:", error);
+        if (res.headersSent) {
+          res.write(
+            `event: error\ndata: ${JSON.stringify({ error: "Document analysis failed" })}\n\n`
+          );
+          res.end();
+        } else {
+          res.status(500).json({ error: "Failed to process documents" });
+        }
+      }
+    }
+  );
+
+  // Link existing document(s) to a control and trigger analysis
+  app.post("/api/organisation-controls/:controlId/documents/link", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      const { documentIds } = req.body;
+      if (!Array.isArray(documentIds) || documentIds.length === 0) {
+        return res.status(400).json({ error: "documentIds array is required" });
+      }
+
+      let orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        orgControl = await storage.createOrganisationControl({
+          controlId,
+          isApplicable: true,
+        });
+      }
+
+      const user = await storage.getOrCreateDefaultUser();
+      const linked: any[] = [];
+
+      for (const docId of documentIds) {
+        const document = await storage.getDocument(docId);
+        if (!document) continue;
+
+        const existing = await storage.getDocumentControlLink(document.id, orgControl.id);
+        if (existing) {
+          linked.push({ documentId: document.id, alreadyLinked: true });
+          continue;
+        }
+
+        await storage.createDocumentControlLink({
+          documentId: document.id,
+          organisationControlId: orgControl.id,
+          linkedByUserId: user.id,
+          analysisStatus: "pending",
+        });
+        linked.push({ documentId: document.id, alreadyLinked: false });
+      }
+
+      res.status(201).json({ linked });
+    } catch (error) {
+      console.error("Error linking documents:", error);
+      res.status(500).json({ error: "Failed to link documents" });
+    }
+  });
+
+  // Get all documents for a control
+  app.get("/api/organisation-controls/:controlId/documents", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      const orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        return res.json([]);
+      }
+
+      const documents = await storage.getDocumentsByOrgControl(orgControl.id);
+      res.json(documents);
+    } catch (error) {
+      console.error("Error fetching control documents:", error);
+      res.status(500).json({ error: "Failed to fetch control documents" });
+    }
+  });
+
+  // Unlink document from control (soft-delete matches)
+  app.delete("/api/organisation-controls/:controlId/documents/:documentId", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      const documentId = parseInt(req.params.documentId);
+      if (isNaN(controlId) || isNaN(documentId)) {
+        return res.status(400).json({ error: "Invalid control or document ID" });
+      }
+
+      const orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        return res.status(404).json({ error: "Organisation control not found" });
+      }
+
+      // Soft-delete all matches for this document+control
+      await storage.softDeleteMatchesByDocumentAndControl(documentId, orgControl.id);
+
+      // Delete the link
+      const deleted = await storage.deleteDocumentControlLink(documentId, orgControl.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Document-control link not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error unlinking document:", error);
+      res.status(500).json({ error: "Failed to unlink document" });
+    }
+  });
+
+  // Re-trigger AI analysis for a document-control pair (SSE)
+  app.post(
+    "/api/organisation-controls/:controlId/documents/:documentId/analyse",
+    async (req, res) => {
+      const controlId = parseInt(req.params.controlId);
+      const documentId = parseInt(req.params.documentId);
+      if (isNaN(controlId) || isNaN(documentId)) {
+        return res.status(400).json({ error: "Invalid control or document ID" });
+      }
+
+      const orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        return res.status(404).json({ error: "Organisation control not found" });
+      }
+
+      const document = await storage.getDocument(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (document.extractionStatus !== "extracted") {
+        return res.status(400).json({ error: "Document text has not been extracted yet" });
+      }
+
+      const control = await storage.getControlById(controlId);
+      if (!control) {
+        return res.status(404).json({ error: "Control not found" });
+      }
+
+      const questionnaire = control.aiQuestionnaire as ControlQuestionnaire | null;
+      if (!questionnaire || !questionnaire.questions || questionnaire.questions.length === 0) {
+        return res.status(400).json({ error: "No questionnaire generated for this control" });
+      }
+
+      // Set up SSE
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+
+      try {
+        const user = await storage.getOrCreateDefaultUser();
+
+        // Update link status
+        const link = await storage.getDocumentControlLink(document.id, orgControl.id);
+        if (link) {
+          await storage.updateDocumentControlLink(link.id, { analysisStatus: "analysing" });
+        }
+
+        // Soft-delete previous matches
+        await storage.softDeleteMatchesByDocumentAndControl(document.id, orgControl.id);
+
+        // Get chunks
+        const dbChunks = await storage.getDocumentChunks(document.id);
+        const chunkInputs: DocumentChunkInput[] = dbChunks.map((c) => ({
+          chunkIndex: c.chunkIndex,
+          content: c.content,
+          sectionHeading: c.sectionHeading,
+          chunkId: c.id,
+        }));
+
+        // Build organisation context
+        const orgProfile = await storage.getOrganisationProfile();
+        const organisationContext = buildOrganisationContextSection(
+          orgProfile
+            ? {
+                companyName: orgProfile.companyName,
+                industry: orgProfile.industry,
+                companySize: orgProfile.companySize,
+                techStack: orgProfile.techStack,
+                deploymentModel: orgProfile.deploymentModel,
+                regulatoryRequirements: orgProfile.regulatoryRequirements,
+                riskAppetite: orgProfile.riskAppetite,
+                additionalContext: orgProfile.additionalContext,
+              }
+            : null
+        );
+
+        const { matches, totalTokensUsed, summary } = await analyseDocumentForControl(
+          document.title,
+          document.evidenceType,
+          chunkInputs,
+          questionnaire.questions as OntologyQuestion[],
+          organisationContext,
+          (progress) => {
+            res.write(`event: progress\ndata: ${JSON.stringify(progress)}\n\n`);
+          },
+          (match) => {
+            res.write(`event: match\ndata: ${JSON.stringify(match)}\n\n`);
+          }
+        );
+
+        // Save matches to DB
+        for (const match of matches) {
+          await storage.createDocumentQuestionMatch({
+            documentId: document.id,
+            organisationControlId: orgControl.id,
+            questionId: match.questionId,
+            contentRelevance: match.contentRelevance,
+            evidenceTypeMatch: match.evidenceTypeMatch,
+            specificity: match.specificity,
+            compositeScore: match.compositeScore,
+            matchedPassage: match.matchedPassage,
+            aiSummary: match.aiSummary,
+            suggestedResponse: match.suggestedResponse,
+            chunkId: match.chunkId || null,
+            isActive: true,
+            isCrossControl: false,
+          });
+        }
+
+        // Update link status
+        if (link) {
+          await storage.updateDocumentControlLink(link.id, {
+            analysisStatus: "analysed",
+            analysisCompletedAt: new Date(),
+          });
+        }
+
+        // Log AI interaction
+        await storage.createAiInteraction({
+          userId: user.id,
+          interactionType: "document_analysis",
+          controlId: control.id,
+          inputSummary: `Re-analysed "${document.title}" for ${control.controlNumber}`,
+          outputSummary: `${summary.strongMatches} strong, ${summary.partialMatches} partial, ${summary.weakMatches} weak. ${summary.pendingSuggestions} suggestions.`,
+          modelUsed: DEFAULT_MODEL,
+          tokensUsed: totalTokensUsed,
+        });
+
+        res.write(`event: complete\ndata: ${JSON.stringify(summary)}\n\n`);
+        res.end();
+      } catch (error) {
+        console.error("Error re-analysing document:", error);
+        if (res.headersSent) {
+          res.write(
+            `event: error\ndata: ${JSON.stringify({ error: "Re-analysis failed" })}\n\n`
+          );
+          res.end();
+        } else {
+          res.status(500).json({ error: "Failed to re-analyse document" });
+        }
+      }
+    }
+  );
+
+  // Get active AI-generated question matches for a control
+  app.get("/api/organisation-controls/:controlId/question-matches", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      const orgControl = await storage.getOrganisationControl(controlId);
+      if (!orgControl) {
+        return res.json([]);
+      }
+
+      const matches = await storage.getActiveMatchesByOrgControl(orgControl.id);
+      res.json(matches);
+    } catch (error) {
+      console.error("Error fetching question matches:", error);
+      res.status(500).json({ error: "Failed to fetch question matches" });
+    }
+  });
+
+  // Evidence gap analysis for a control
+  app.get("/api/organisation-controls/:controlId/evidence-gaps", async (req, res) => {
+    try {
+      const controlId = parseInt(req.params.controlId);
+      if (isNaN(controlId)) {
+        return res.status(400).json({ error: "Invalid control ID" });
+      }
+
+      const control = await storage.getControlById(controlId);
+      if (!control) {
+        return res.status(404).json({ error: "Control not found" });
+      }
+
+      const questionnaire = control.aiQuestionnaire as ControlQuestionnaire | null;
+      if (!questionnaire || !questionnaire.questions) {
+        return res.json({ questions: [], totalQuestions: 0, coveredQuestions: 0, gapQuestions: 0 });
+      }
+
+      const orgControl = await storage.getOrganisationControl(controlId);
+      const matches = orgControl
+        ? await storage.getActiveMatchesByOrgControl(orgControl.id)
+        : [];
+
+      // Build per-question gap analysis
+      const matchesByQuestion = new Map<number, typeof matches>();
+      for (const match of matches) {
+        const existing = matchesByQuestion.get(match.questionId) || [];
+        existing.push(match);
+        matchesByQuestion.set(match.questionId, existing);
+      }
+
+      const questions = questionnaire.questions.map((q: OntologyQuestion) => {
+        const questionMatches = matchesByQuestion.get(q.question_id) || [];
+        const bestMatch = questionMatches.length > 0
+          ? questionMatches.reduce((a, b) => (a.compositeScore >= b.compositeScore ? a : b))
+          : null;
+        const pendingSuggestions = questionMatches.filter(
+          (m) => m.userAccepted === null && m.compositeScore >= 0.5
+        ).length;
+
+        let evidenceStatus: "none" | "partial" | "full" = "none";
+        if (bestMatch) {
+          if (bestMatch.compositeScore >= 0.85 && bestMatch.evidenceTypeMatch) {
+            evidenceStatus = "full";
+          } else {
+            evidenceStatus = "partial";
+          }
+        }
+
+        return {
+          questionId: q.question_id,
+          question: q.question,
+          evidenceType: q.evidence_type,
+          evidenceStatus,
+          bestScore: bestMatch?.compositeScore || null,
+          matchCount: questionMatches.length,
+          pendingSuggestions,
+        };
+      });
+
+      const coveredQuestions = questions.filter((q) => q.evidenceStatus !== "none").length;
+
+      res.json({
+        questions,
+        totalQuestions: questions.length,
+        coveredQuestions,
+        gapQuestions: questions.length - coveredQuestions,
+      });
+    } catch (error) {
+      console.error("Error fetching evidence gaps:", error);
+      res.status(500).json({ error: "Failed to fetch evidence gaps" });
+    }
+  });
+
+  // ─── Suggestion Review ────────────────────────────────────────────────────
+
+  // Accept a suggestion → write to response + log to changeLog
+  app.post("/api/question-matches/:matchId/accept", async (req, res) => {
+    try {
+      const matchId = parseInt(req.params.matchId);
+      if (isNaN(matchId)) {
+        return res.status(400).json({ error: "Invalid match ID" });
+      }
+
+      const match = await storage.getMatchById(matchId);
+      if (!match) {
+        return res.status(404).json({ error: "Match not found" });
+      }
+
+      const user = await storage.getOrCreateDefaultUser();
+
+      // Accept the suggestion
+      const accepted = await storage.acceptSuggestion(matchId, user.id);
+
+      // Write the suggested response to the questionnaire implementation responses
+      const orgControl = await storage.getOrganisationControl(match.organisationControlId);
+      if (orgControl) {
+        const existingResponses: ImplementationResponses = orgControl.implementationResponses || {
+          responses: [],
+          completion_status: {
+            total: 0,
+            answered: 0,
+            by_persona: {
+              Auditor: { total: 0, answered: 0 },
+              Advisor: { total: 0, answered: 0 },
+              Analyst: { total: 0, answered: 0 },
+            },
+          },
+        };
+
+        const existingIndex = existingResponses.responses.findIndex(
+          (r) => r.question_id === match.questionId
+        );
+        const previousResponse = existingIndex >= 0 ? existingResponses.responses[existingIndex].response_text : null;
+
+        const newResponse: QuestionResponse = {
+          question_id: match.questionId,
+          response_text: match.suggestedResponse || "",
+          evidence_references: existingIndex >= 0 ? existingResponses.responses[existingIndex].evidence_references : [],
+          last_updated: new Date().toISOString(),
+          answered_by_user_id: user.id,
+        };
+
+        if (existingIndex >= 0) {
+          existingResponses.responses[existingIndex] = newResponse;
+        } else {
+          existingResponses.responses.push(newResponse);
+        }
+
+        existingResponses.completion_status.answered = existingResponses.responses.filter(
+          (r) => r.response_text.trim().length > 0
+        ).length;
+
+        await storage.updateOrganisationControl(match.organisationControlId, {
+          implementationResponses: existingResponses,
+          implementationUpdatedAt: new Date(),
+        });
+
+        // Log the change
+        await storage.createResponseChangeLog({
+          organisationControlId: match.organisationControlId,
+          questionId: match.questionId,
+          previousResponse,
+          newResponse: match.suggestedResponse || "",
+          changeSource: "ai_suggestion_accepted",
+          sourceDocumentId: match.documentId,
+          sourceMatchId: match.id,
+          changedByUserId: user.id,
+        });
+      }
+
+      res.json({ success: true, match: accepted });
+    } catch (error) {
+      console.error("Error accepting suggestion:", error);
+      res.status(500).json({ error: "Failed to accept suggestion" });
+    }
+  });
+
+  // Dismiss a suggestion
+  app.post("/api/question-matches/:matchId/dismiss", async (req, res) => {
+    try {
+      const matchId = parseInt(req.params.matchId);
+      if (isNaN(matchId)) {
+        return res.status(400).json({ error: "Invalid match ID" });
+      }
+
+      const user = await storage.getOrCreateDefaultUser();
+      const dismissed = await storage.dismissSuggestion(matchId, user.id);
+      if (!dismissed) {
+        return res.status(404).json({ error: "Match not found" });
+      }
+
+      res.json({ success: true, match: dismissed });
+    } catch (error) {
+      console.error("Error dismissing suggestion:", error);
+      res.status(500).json({ error: "Failed to dismiss suggestion" });
+    }
+  });
+
+  // Accept with user edits
+  app.post("/api/question-matches/:matchId/accept-edited", async (req, res) => {
+    try {
+      const matchId = parseInt(req.params.matchId);
+      if (isNaN(matchId)) {
+        return res.status(400).json({ error: "Invalid match ID" });
+      }
+
+      const { editedResponse } = req.body;
+      if (!editedResponse || typeof editedResponse !== "string") {
+        return res.status(400).json({ error: "editedResponse is required" });
+      }
+
+      const match = await storage.getMatchById(matchId);
+      if (!match) {
+        return res.status(404).json({ error: "Match not found" });
+      }
+
+      const user = await storage.getOrCreateDefaultUser();
+
+      // Accept the suggestion
+      await storage.acceptSuggestion(matchId, user.id);
+
+      // Write the EDITED response to the questionnaire
+      const orgControl = await storage.getOrganisationControl(match.organisationControlId);
+      if (orgControl) {
+        const existingResponses: ImplementationResponses = orgControl.implementationResponses || {
+          responses: [],
+          completion_status: {
+            total: 0,
+            answered: 0,
+            by_persona: {
+              Auditor: { total: 0, answered: 0 },
+              Advisor: { total: 0, answered: 0 },
+              Analyst: { total: 0, answered: 0 },
+            },
+          },
+        };
+
+        const existingIndex = existingResponses.responses.findIndex(
+          (r) => r.question_id === match.questionId
+        );
+        const previousResponse = existingIndex >= 0 ? existingResponses.responses[existingIndex].response_text : null;
+
+        const newResponse: QuestionResponse = {
+          question_id: match.questionId,
+          response_text: editedResponse,
+          evidence_references: existingIndex >= 0 ? existingResponses.responses[existingIndex].evidence_references : [],
+          last_updated: new Date().toISOString(),
+          answered_by_user_id: user.id,
+        };
+
+        if (existingIndex >= 0) {
+          existingResponses.responses[existingIndex] = newResponse;
+        } else {
+          existingResponses.responses.push(newResponse);
+        }
+
+        existingResponses.completion_status.answered = existingResponses.responses.filter(
+          (r) => r.response_text.trim().length > 0
+        ).length;
+
+        await storage.updateOrganisationControl(match.organisationControlId, {
+          implementationResponses: existingResponses,
+          implementationUpdatedAt: new Date(),
+        });
+
+        // Log the change as edited acceptance
+        await storage.createResponseChangeLog({
+          organisationControlId: match.organisationControlId,
+          questionId: match.questionId,
+          previousResponse,
+          newResponse: editedResponse,
+          changeSource: "ai_suggestion_edited",
+          sourceDocumentId: match.documentId,
+          sourceMatchId: match.id,
+          changedByUserId: user.id,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error accepting edited suggestion:", error);
+      res.status(500).json({ error: "Failed to accept edited suggestion" });
+    }
+  });
+
+  // ─── Response History ─────────────────────────────────────────────────────
+
+  // Audit trail for a question's response changes
+  app.get(
+    "/api/organisation-controls/:controlId/questions/:questionId/history",
+    async (req, res) => {
+      try {
+        const controlId = parseInt(req.params.controlId);
+        const questionId = parseInt(req.params.questionId);
+        if (isNaN(controlId) || isNaN(questionId)) {
+          return res.status(400).json({ error: "Invalid control or question ID" });
+        }
+
+        const orgControl = await storage.getOrganisationControl(controlId);
+        if (!orgControl) {
+          return res.json([]);
+        }
+
+        const history = await storage.getResponseHistory(orgControl.id, questionId);
+        res.json(history);
+      } catch (error) {
+        console.error("Error fetching response history:", error);
+        res.status(500).json({ error: "Failed to fetch response history" });
+      }
+    }
+  );
 
   // Dashboard - complete dashboard data
   app.get("/api/dashboard", async (req, res) => {
