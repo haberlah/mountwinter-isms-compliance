@@ -7,7 +7,7 @@ import { insertTestRunSchema, type Persona, type ImplementationResponses, type Q
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { upload } from "./upload";
-import { isS3Configured, generateS3Key, uploadToS3, getDownloadUrl, deleteFromS3, checkS3Connection } from "./s3";
+import { isStorageConfigured, generateStorageKey, uploadFile, downloadFile, deleteFile, checkStorageConnection, getBackendName } from "./storage-backend";
 import { computeFileHash, extractText, sanitiseTextForAI, chunkText } from "./document-processor";
 import { analyseDocumentForControl, type DocumentChunkInput } from "./document-analyser";
 
@@ -39,17 +39,18 @@ export async function registerRoutes(
     console.log("✓ AI service configured");
   }
 
-  // Check S3 configuration on startup
-  if (isS3Configured()) {
+  // Check document storage configuration on startup
+  if (isStorageConfigured()) {
     try {
-      await checkS3Connection();
-      console.log("✓ S3 storage configured");
+      await checkStorageConnection();
+      const backendName = await getBackendName();
+      console.log(`✓ Document storage configured (${backendName})`);
     } catch (error) {
-      console.warn("⚠️  S3 Configuration Warning:", (error as Error).message);
+      console.warn("⚠️  Storage Configuration Warning:", (error as Error).message);
       console.warn("   Document upload features will not work until this is resolved.");
     }
   } else {
-    console.warn("⚠️  S3 not configured — document upload features disabled");
+    console.warn("⚠️  Document storage not configured — document upload features disabled");
   }
 
   // ─── Document Repository CRUD ──────────────────────────────────────────────
@@ -57,7 +58,7 @@ export async function registerRoutes(
   // Upload documents to central repository
   app.post("/api/documents/upload", upload.array("files", 10), async (req, res) => {
     try {
-      if (!isS3Configured()) {
+      if (!isStorageConfigured()) {
         return res.status(503).json({ error: "Document storage is not configured" });
       }
 
@@ -79,17 +80,17 @@ export async function registerRoutes(
           continue;
         }
 
-        // Upload to S3 first
-        const s3Key = generateS3Key(file.originalname);
-        await uploadToS3(file.buffer, s3Key, file.mimetype);
+        // Upload to storage backend first
+        const storageKey = generateStorageKey(file.originalname);
+        const uploadResult = await uploadFile(file.buffer, storageKey, file.mimetype);
 
         try {
           // Create DB record
           const document = await storage.createDocument({
             title: req.body.title || file.originalname.replace(/\.[^.]+$/, ""),
             originalFilename: file.originalname,
-            s3Key,
-            s3Bucket: process.env.S3_BUCKET || "",
+            s3Key: uploadResult.key,
+            s3Bucket: uploadResult.bucket,
             mimeType: file.mimetype,
             fileSize: file.size,
             fileHash,
@@ -137,9 +138,9 @@ export async function registerRoutes(
             results.push({ document: await storage.getDocument(document.id), isDuplicate: false });
           }
         } catch (dbError) {
-          // Clean up S3 object if DB insert fails
-          console.error(`[Routes] DB insert failed, cleaning up S3 key "${s3Key}":`, dbError);
-          await deleteFromS3(s3Key).catch(() => {});
+          // Clean up storage object if DB insert fails
+          console.error(`[Routes] DB insert failed, cleaning up storage key "${storageKey}":`, dbError);
+          await deleteFile(storageKey).catch(() => {});
           throw dbError;
         }
       }
@@ -203,7 +204,7 @@ export async function registerRoutes(
     }
   });
 
-  // Download document (presigned S3 URL redirect)
+  // Download document (stream from storage backend)
   app.get("/api/documents/:id/download", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -216,11 +217,16 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Document not found" });
       }
 
-      const url = await getDownloadUrl(document.s3Key);
-      res.redirect(url);
+      const buffer = await downloadFile(document.s3Key);
+      res.set({
+        "Content-Type": document.mimeType,
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(document.originalFilename)}"`,
+        "Content-Length": buffer.length.toString(),
+      });
+      res.send(buffer);
     } catch (error) {
-      console.error("Error generating download URL:", error);
-      res.status(500).json({ error: "Failed to generate download URL" });
+      console.error("Error downloading document:", error);
+      res.status(500).json({ error: "Failed to download document" });
     }
   });
 
@@ -268,9 +274,9 @@ export async function registerRoutes(
       try {
         const deleted = await storage.deleteDocument(id);
         if (deleted) {
-          // Clean up S3 object
-          await deleteFromS3(document.s3Key).catch((e) =>
-            console.warn(`[Routes] Failed to delete S3 object "${document.s3Key}":`, e)
+          // Clean up storage object
+          await deleteFile(document.s3Key).catch((e) =>
+            console.warn(`[Routes] Failed to delete storage object "${document.s3Key}":`, e)
           );
         }
         res.json({ success: true });
@@ -301,7 +307,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid control ID" });
       }
 
-      if (!isS3Configured()) {
+      if (!isStorageConfigured()) {
         return res.status(503).json({ error: "Document storage is not configured" });
       }
 
@@ -366,16 +372,16 @@ export async function registerRoutes(
               })}\n\n`
             );
           } else {
-            // Upload to S3
-            const s3Key = generateS3Key(file.originalname);
-            await uploadToS3(file.buffer, s3Key, file.mimetype);
+            // Upload to storage backend
+            const storageKey = generateStorageKey(file.originalname);
+            const uploadResult = await uploadFile(file.buffer, storageKey, file.mimetype);
 
             try {
               document = await storage.createDocument({
                 title: file.originalname.replace(/\.[^.]+$/, ""),
                 originalFilename: file.originalname,
-                s3Key,
-                s3Bucket: process.env.S3_BUCKET || "",
+                s3Key: uploadResult.key,
+                s3Bucket: uploadResult.bucket,
                 mimeType: file.mimetype,
                 fileSize: file.size,
                 fileHash,
@@ -386,7 +392,7 @@ export async function registerRoutes(
                 extractionStatus: "pending",
               });
             } catch (dbError) {
-              await deleteFromS3(s3Key).catch(() => {});
+              await deleteFile(storageKey).catch(() => {});
               throw dbError;
             }
           }

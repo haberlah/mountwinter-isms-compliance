@@ -39,7 +39,7 @@ function fileFilter(
  * Multer middleware configured for document uploads.
  * Use as: upload.array("files", MAX_FILES)
  *
- * Files are stored in memory (buffer) for immediate S3 upload.
+ * Files are stored in memory (buffer) for immediate storage upload.
  */
 export const upload = multer({
   storage,
