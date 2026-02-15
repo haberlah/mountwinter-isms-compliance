@@ -1,0 +1,237 @@
+================================================================================
+ISO 27001 COMPLIANCE TEST DOCUMENTS
+HorseInsure Pty Ltd (ABN 41 209 837 156)
+Generated: 15 February 2026
+================================================================================
+
+DOCUMENT INVENTORY (5 created):
+
+1. PLA-001_Business_Continuity_Plan.docx (8.7 KB)
+   Version: 1.1 | Status: OVERDUE FOR REVIEW
+   Approved: Margaret Thornton (CEO) — 3 April 2024
+   Scheduled Review: 3 April 2025 [NOW OVERDUE]
+   Owner: Sarah Williams (Head of IT)
+   
+   Contains:
+   - Document information table (Effective Date, Last Approved, Review Date, Status)
+   - Purpose and scope section
+   - Critical business functions with RTO/RPO metrics
+   - Emergency response team contact details
+   - Activation triggers (30+ min outage, facility access loss, etc.)
+   - Recovery procedures for EquiClaim, EquiPolicy, alternate sites
+   - Communication plan for staff, management, policyholders, regulators
+   - Testing history showing last test April 2024 (NO TESTS IN 2025)
+   - Document approval signature block
+   
+   Compliance Issues Embedded:
+   ✗ Plan overdue for annual review (scheduled 3 Apr 2025)
+   ✗ No BC testing conducted in 2025 (only April 2024 test recorded)
+   ✗ Q2 2025 tabletop exercise noted as "Planned: Q2 2025" but not yet conducted
+
+---
+
+2. REG-001_Risk_Register.docx (8.1 KB)
+   Version: Living Document | Last Updated: 30 November 2025
+   Owner: Angela Torres (Compliance Manager)
+   
+   Contains:
+   - Document information table with update status
+   - Risk scoring methodology (Likelihood × Impact)
+   - Large table with 20 active risks covering:
+     * Technology risks (system outages, data loss, unauthorized access, misconfig)
+     * People risks (insider threats, lack of awareness)
+     * Process risks (inadequate documentation, patch management gaps)
+     * Physical risks (facility access, disaster)
+     * Third-party risks (vendor lock-in, SaaS breaches)
+     * Compliance risks (Privacy Act, APG Code of Conduct)
+   
+   Risk Details per Row:
+   - Risk ID, Category, Description, Likelihood (1-5), Impact (1-5), Risk Score
+   - Current Controls, Treatment Plan, Owner, Status, Review Date
+   
+   Compliance Issues Embedded:
+   ✗ 3 risks with BLANK/TBD Treatment Plans (RK-007, RK-013, RK-019)
+   ✗ 2 risks with overdue review dates (RK-002 "30 Jun 2025", RK-008 "30 Sep 2025")
+   ✗ "At Risk" status on RK-004 and RK-017
+   ✗ Horse-specific risks included (equine health records, blow-up horse claims)
+
+---
+
+3. REG-002_Asset_Register.docx (8.2 KB)
+   Version: Living Document | Last Updated: 15 October 2025
+   Owner: Sarah Williams (Head of IT)
+   
+   Contains:
+   - Document information showing 123 days overdue since last update
+   - Asset classification levels (Critical, High, Medium, Low)
+   - Large table with 30 IT assets covering:
+     * Servers (EquiClaim primary/DR, EquiPolicy, EquiQuote, SAP, Salesforce)
+     * Network Equipment (Core switches, firewalls, WiFi APs at all locations)
+     * Workstations (Executive desks, claims processors, underwriting team)
+     * Mobile Devices (iPads, iPhones, Samsung tablets)
+     * Software (Adobe, Jira, Slack, Okta)
+     * Cloud Services (Azure VMs, databases, backups, OneDrive)
+   
+   Asset Details per Row:
+   - Asset ID, Type, Description, Owner, Location, Classification, Status
+   
+   Compliance Issues Embedded:
+   ✗ 6 assets MISSING classification (AS-012, AS-014, AS-017, AS-020, AS-022 + 1 more)
+   ✗ Register 4 MONTHS OVERDUE (last updated 15 Oct 2025, now 15 Feb 2026)
+   ✗ Unclassified assets represent 20% of inventory
+   ✗ No scheduled review date provided
+
+---
+
+4. SOA-001_Statement_of_Applicability.docx (8.5 KB)
+   Version: 2.0 | Approved: 15 March 2025
+   Owner: David Chen (CISO) | Approved by: Margaret Thornton (CEO)
+   
+   Contains:
+   - Document information table
+   - Introduction describing organizational scope (EquiClaim, EquiPolicy, EquiQuote, Azure, Microsoft 365)
+   - Large control table with 40 security controls covering:
+     * Organisational controls (Governance, Asset Management, Access Control, Data Classification)
+     * People controls (Personnel Security, Training, Access Review, Privileged Access)
+     * Physical controls (Data centre, Environmental, Clean Desk, Equipment Disposal)
+     * Technological controls (Cryptography, Network Security, Application Security, Monitoring)
+   
+   Control Details per Row:
+   - Control ID (SEC-01 through SEC-40, NO ISO references)
+   - Control Name, Applicable (Yes/No), Justification, Implementation Status
+   
+   Implementation Status Distribution:
+   - 33 controls: Implemented
+   - 5 controls: Partially Implemented (SEC-05, SEC-11, SEC-16, SEC-23, SEC-28)
+   - 2 controls: Planned (SEC-10, SEC-22)
+   
+   Detailed Partial/Planned Implementation Notes:
+   ✗ SEC-05 (Cryptography): TLS in transit enabled; at-rest encryption pending SAP upgrade Q2 2025
+   ✗ SEC-11 (Incident Management): Plan documented but only 1 mock exercise completed
+   ✗ SEC-16 (Application Security): Code reviews in place; SAST tooling pending
+   ✗ SEC-23 (Privacy Impact Assessment): Framework exists but inconsistently applied
+   ✗ SEC-28 (Security Awareness): 68% training completion; target 100% by June 2025
+   ✓ SEC-10 (Capacity Management): Tool selection underway; implementation Q3 2025
+   ✓ SEC-22 (Data Retention): Policy drafted; legal review pending
+
+---
+
+5. OBJ-001_Information_Security_Objectives_2025-2026.docx (8.8 KB)
+   Version: 1.0 | Approved: 15 March 2025
+   Owner: David Chen (CISO) | Approved by: Margaret Thornton (CEO)
+   
+   Contains:
+   - Document information with 9 total objectives
+   - Large objectives table with 9 measurable security objectives:
+   
+   Objective Details per Row:
+   - Objective (target + description), Target (quantified), Measurement Method
+   - Responsible Person, Target Date, Current Status
+   
+   Status Distribution:
+   - 5 objectives: On Track
+   - 3 objectives: At Risk or Behind Schedule
+   - 1 objective: Pending audit (not yet scheduled)
+   
+   Objectives:
+   1. OBJ-2025-01: Staff Training 100% completion by 30 Jun 2025 — ON TRACK (82% complete)
+   2. OBJ-2025-02: SAST/DAST Tooling deployment by 30 Sep 2025 — AT RISK (0 deployed, procurement delayed)
+   3. OBJ-2025-03: BC/DR Testing by 31 Aug 2025 — BEHIND SCHEDULE (0 tests, last test Apr 2024)
+   4. OBJ-2025-04: Vendor SaaS Risk Assessments (3 vendors) by 30 Jun 2025 — ON TRACK
+   5. OBJ-2025-05: Vulnerability Remediation <30 days by 31 Dec 2025 — AT RISK (currently 45 days avg)
+   6. OBJ-2025-06: Mobile Device Management enrollment by 31 May 2025 — ON TRACK (16/18 devices)
+   7. OBJ-2025-07: Incident Response MTTR <4 hours by 30 Jun 2025 — ON TRACK (2.8 hrs baseline)
+   8. OBJ-2025-08: Azure Security Hardening by 30 Nov 2025 — BEHIND SCHEDULE (65% complete)
+   9. OBJ-2025-09: Zero high-severity findings in audit by 31 Mar 2026 — ON TRACK (audit pending)
+   
+   Q1 2025 Progress Update Section:
+   - Detailed status for each objective
+   - Explains blockers and resource constraints
+   - Identifies revised timelines
+   
+   Compliance Issues Embedded:
+   ✗ OBJ-2025-02: 0 tools deployed (0% progress), procurement delays, revised deadline Dec 2025
+   ✗ OBJ-2025-03: 0 tests conducted despite overdue objective; last BC test April 2024
+   ✗ OBJ-2025-05: Remediation time 45 days vs 30-day SLA target; resource constraints cited
+   ✗ OBJ-2025-08: 65% complete, 35% remaining work, resource constraints delaying completion
+
+================================================================================
+REALISTIC ISO 27001 TESTING SCENARIOS
+================================================================================
+
+Key Compliance Gaps for Testing:
+1. BC Plan Overdue: Document version 1.1 from April 2024, review due April 2025 (9+ months overdue)
+2. No 2025 Testing: BC plan shows no testing conducted in 2025, violating typical annual test requirement
+3. Asset Register Stale: October 2025 update is 4 months old; 6 assets unclassified (20% of inventory)
+4. Risk Treatment Plans Incomplete: 3 of 20 risks lack treatment plans (15% incomplete)
+5. Control Partial Implementation: 5 of 40 controls only partially implemented; 2 not yet started
+6. Objectives Behind Schedule: 3 of 9 FY2025-26 objectives behind schedule or at risk
+7. Incident Response Gaps: Only 1 mock exercise; SAST/DAST tooling not deployed
+8. Vulnerability SLA Breached: 45-day actual vs 30-day target remediation time
+9. Azure Security Hardening: 65% complete; 35% of hardening work still pending
+10. Staff Training: 82% completion; 18% of staff not yet trained
+
+================================================================================
+ORGANIZATION DETAILS
+================================================================================
+
+Company: HorseInsure Pty Ltd
+ABN: 41 209 837 156
+Employees: 254
+Industry: Insurance (equine including inflatable/blow-up horses)
+
+Key Personnel:
+- CEO: Margaret "Maggie" Thornton
+- CIO/CISO: David Chen
+- Head of IT: Sarah Williams
+- Head of HR: James O'Brien
+- Head of Claims: Patricia Kumar
+- Head of Underwriting: Robert Fitzgerald
+- Compliance Manager: Angela Torres
+- IT Security Analyst: Marcus Lee
+- Facilities Manager: Tom Bradley
+- Service Desk Lead: Priya Nair
+- Network Administrator: Liam Foster
+
+Locations:
+- Sydney CBD: Level 12, 45 Pitt Street (HQ)
+- Dubbo: Regional office
+- Scone: Warehouse facility
+
+Key Systems:
+- EquiClaim: Claims management
+- EquiPolicy: Policy administration
+- EquiQuote: Underwriting
+- Microsoft 365: Office productivity
+- Azure AD: Identity management
+- Azure Infrastructure: Cloud hosting
+- Salesforce: CRM
+- SAP Finance: Financial management
+
+================================================================================
+DOCUMENT GENERATION NOTES
+================================================================================
+
+Format: Microsoft Word 2007+ (.docx)
+Font: Arial, A4 page size
+Headers/Footers: Included with page numbers and confidentiality notices
+Tables: Full width with DXA measurements, proper cell widths, shading
+No Unicode Issues: Proper paragraph separation (no \n), standard fonts
+Realistic Data:
+- Horse-specific insurance references throughout
+- Actual contact numbers and email formats
+- Real-world IT systems and cloud platforms
+- Authentic risk scenarios and control matrices
+- Detailed progress tracking with status updates
+
+Compliance Testing Coverage:
+✓ Document governance (versions, approvals, review dates)
+✓ Risk management (scoring, treatment, owner assignment)
+✓ Asset management (classification, location, ownership)
+✓ Control implementation status tracking
+✓ Objective measurement and monitoring
+✓ Identified gaps (overdue items, incomplete plans, behind-schedule objectives)
+
+All documents ready for ISO 27001 compliance testing and audit scenarios.
+
+================================================================================
