@@ -85,10 +85,24 @@ interface OrganisationProfile {
 export default function Controls() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>(
+    () => localStorage.getItem("controls-category-filter") ?? "all"
+  );
+  const [statusFilter, setStatusFilter] = useState<string>(
+    () => localStorage.getItem("controls-status-filter") ?? "all"
+  );
   const [sortField, setSortField] = useState<SortField>("controlNumber");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const handleCategoryFilter = (value: string) => {
+    setCategoryFilter(value);
+    localStorage.setItem("controls-category-filter", value);
+  };
+
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+    localStorage.setItem("controls-status-filter", value);
+  };
 
   const { data: controls, isLoading: controlsLoading } = useQuery<ControlWithLatestTest[]>({
     queryKey: ["/api/controls"],
@@ -245,7 +259,7 @@ export default function Controls() {
               data-testid="input-search-controls"
             />
           </div>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select value={categoryFilter} onValueChange={handleCategoryFilter}>
             <SelectTrigger className="w-[180px]" data-testid="select-category-filter">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
@@ -258,7 +272,7 @@ export default function Controls() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={handleStatusFilter}>
             <SelectTrigger className="w-[150px]" data-testid="select-status-filter">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
