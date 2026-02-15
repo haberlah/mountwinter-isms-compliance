@@ -41,7 +41,7 @@ import type { Document, DocumentControlLink } from "@shared/schema";
 
 interface ControlDocument {
   document: Document;
-  link: DocumentControlLink;
+  link: DocumentControlLink | null;
 }
 
 interface ControlDocumentsSectionProps {
@@ -182,8 +182,8 @@ export function ControlDocumentsSection({
   const documents = controlDocuments || [];
   const documentCount = documents.length;
 
-  // Separate own documents from cross-control references
-  const ownDocuments = documents.filter((d) => !d.link.analysisStatus || d.link.analysisStatus !== undefined);
+  // Separate own documents from cross-control references (defensive against missing link data)
+  const ownDocuments = documents.filter((d) => !d.link?.analysisStatus || d.link?.analysisStatus !== undefined);
   // For now, cross-control documents would be surfaced through question matches (Phase 7)
 
   return (
@@ -281,7 +281,7 @@ export function ControlDocumentsSection({
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        {getAnalysisStatusBadge(link.analysisStatus)}
+                        {getAnalysisStatusBadge(link?.analysisStatus ?? null)}
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button

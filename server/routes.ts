@@ -653,8 +653,17 @@ export async function registerRoutes(
         return res.json([]);
       }
 
-      const documents = await storage.getDocumentsByOrgControl(orgControl.id);
-      res.json(documents);
+      const docs = await storage.getDocumentsByOrgControl(orgControl.id);
+
+      // Enrich each document with its control link metadata
+      const enriched = await Promise.all(
+        docs.map(async (doc) => {
+          const link = await storage.getDocumentControlLink(doc.id, orgControl.id);
+          return { document: doc, link: link || null };
+        })
+      );
+
+      res.json(enriched);
     } catch (error) {
       console.error("Error fetching control documents:", error);
       res.status(500).json({ error: "Failed to fetch control documents" });
