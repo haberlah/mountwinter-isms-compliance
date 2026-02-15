@@ -1,0 +1,193 @@
+================================================================================
+HORSEINSURE PTY LTD - ISO 27001 COMPLIANCE TEST CASE DOCUMENTS
+Manifest & Delivery Summary
+================================================================================
+
+DELIVERY LOCATION:
+/sessions/determined-serene-wozniak/mnt/iso_27001/test_case/
+
+CREATED DOCUMENTS (7 TOTAL):
+================================================================================
+
+1. POL-008_HR_Security.docx
+   - Human Resources Security Policy
+   - Version 2.0 | Approval: 22 Feb 2025 | Review: 22 Feb 2026
+   - Owner: James O'Brien | Approved: Margaret Thornton
+   - Size: 13 KB | Pages: 6-7
+
+2. POL-009_Physical_Environmental_Security.docx
+   - Physical and Environmental Security Policy
+   - Version 1.2 | Approval: 18 Jul 2025 | Review: 18 Jul 2026
+   - Owner: Tom Bradley | Approved: David Chen
+   - Size: 13 KB | Pages: 6-7
+   - Covers: Sydney CBD (Level 12, 45 Pitt St), Dubbo office, Scone warehouse
+
+3. POL-010_Supplier_Third_Party.docx
+   - Supplier and Third-Party Management Policy
+   - Version 1.0 | Approval: 9 May 2025 | Review: 9 May 2026
+   - Owner: Angela Torres | Approved: David Chen
+   - Size: 12 KB | Pages: 6-7
+
+4. POL-011_Change_Management.docx
+   - Change Management Policy
+   - Version 1.4 | Approval: 28 Jun 2025 | Review: 28 Jun 2026
+   - Owner: Sarah Williams | Approved: David Chen
+   - Size: 13 KB | Pages: 7-8
+   - Includes: Change classification, approval workflows, testing, rollback
+
+5. POL-012_Cryptography_Key_Management.docx
+   - Cryptography and Key Management Policy
+   - Version 1.0 | Approval: 14 Oct 2025 | Review: 14 Oct 2026
+   - Owner: Marcus Lee | Approved: David Chen
+   - Size: 12 KB | Pages: 5-6
+   - Specifies: TLS 1.2+, AES-256, RSA 2048-bit, HSM/KMS storage
+
+6. POL-013_Asset_Management.docx
+   - Asset Management Policy
+   - Version 1.3 | Approval: 6 Dec 2024 | Review: 6 Dec 2025
+   - Owner: Sarah Williams | Approved: David Chen
+   - Size: 12 KB | Pages: 6-7
+   - STATUS: OVERDUE FOR REVIEW (as of 15 Feb 2026)
+
+7. POL-014_Privacy_Data_Protection.docx
+   - Privacy and Data Protection Policy
+   - Version 2.1 | Approval: 30 Jan 2025 | Review: 30 Jan 2026
+   - Owner: Angela Torres | Approved: Margaret Thornton
+   - Size: 13 KB | Pages: 8-9
+   - Covers: Privacy Act 1988, Australian Privacy Principles (APPs)
+   - Status: Past review date (approved 30 Jan 2025)
+
+SUPPORT DOCUMENTS:
+================================================================================
+- POLICY_SUMMARY.txt: Comprehensive summary of all 7 policies with key details
+- MANIFEST.txt: This file
+- README.txt: Original readme (existing in directory)
+
+DOCUMENT SPECIFICATIONS:
+================================================================================
+
+Format: Microsoft Word 2007+ (.docx format)
+Font: Arial throughout (sizes 18-28pt for hierarchy)
+Page Size: A4
+Page Numbers: Automatic, centered in footer
+Header: Professional company branding with document ID
+Content Structure:
+  ✓ Policy control information table (ID, version, owner, approval, dates)
+  ✓ Purpose statement
+  ✓ Scope definition
+  ✓ Numbered sections with detailed requirements
+  ✓ Document history table with version tracking
+  ✓ Page breaks for readability
+  ✓ Professional formatting throughout
+
+Total Content: 45-50 pages of substantive policy content across 7 documents
+Quality: Realistic, detailed corporate policies with horse insurance context
+
+COMPANY INFORMATION:
+================================================================================
+Name: HorseInsure Pty Ltd
+ABN: 41 209 837 156
+Employees: 254
+Business: Equine insurance (including inflatable/blow-up horses)
+
+Locations:
+- Head Office: Level 12, 45 Pitt Street, Sydney NSW 2000
+- Regional Office: Dubbo, NSW
+- Warehouse: Scone, NSW
+
+KEY PERSONNEL REFERENCED:
+- Margaret "Maggie" Thornton (CEO)
+- David Chen (CIO/CISO)
+- Sarah Williams (Head of IT)
+- James O'Brien (Head of HR)
+- Patricia Kumar (Head of Claims)
+- Robert Fitzgerald (Head of Underwriting)
+- Angela Torres (Compliance Manager)
+- Marcus Lee (IT Security Analyst)
+- Tom Bradley (Facilities Manager)
+
+TESTING FEATURES FOR ISO 27001 COMPLIANCE SCANNING:
+================================================================================
+
+Each document includes INTENTIONAL GAPS for compliance testing:
+
+1. POL-008 (HR Security)
+   ├─ Gap: No clean desk policy section
+   └─ Testing: Detect missing basic security policy elements
+
+2. POL-009 (Physical & Environmental Security)
+   ├─ Gap: Clear desk integrated into workstation section (no dedicated section)
+   └─ Testing: Detect missing explicit clear desk/screen policies
+
+3. POL-010 (Supplier Management)
+   ├─ Status: Current and complete
+   └─ Control: Benchmark policy with no gaps
+
+4. POL-011 (Change Management)
+   ├─ Gap: No emergency change procedure section
+   └─ Testing: Detect missing emergency change handling
+
+5. POL-012 (Cryptography & Key Management)
+   ├─ Gap: Key management section intentionally thin (1-2 short paragraphs)
+   └─ Testing: Detect inadequate key lifecycle documentation
+
+6. POL-013 (Asset Management)
+   ├─ Status: OVERDUE FOR REVIEW (approval 6 Dec 2024, due 6 Dec 2025, today 15 Feb 2026)
+   └─ Testing: Detect policy review non-compliance
+
+7. POL-014 (Privacy & Data Protection)
+   ├─ Gap: APP 8 (Cross-border Disclosure) missing from detailed coverage
+   ├─ Status: PAST REVIEW DATE (approved 30 Jan 2025, due 30 Jan 2026)
+   └─ Testing: Detect incomplete regulatory coverage + review overdue
+
+REALISTIC CONTENT INCLUDED:
+================================================================================
+
+Horse Insurance Context:
+- Policyholder data including equine health records
+- Claims related to horse injuries and medical treatments
+- Underwriting considerations for different horse types (standard and inflatable)
+- Coverage details for equine equipment and veterinary expenses
+
+Australian Regulatory:
+- Privacy Act 1988 (Cth) compliance
+- Australian Privacy Principles (APPs 1-13, with APP 8 gap)
+- ABN and company registration details authentic
+- Realistic Australian locations and contact procedures
+
+Business Realistic:
+- 254 employee company scale
+- Multi-site operations (Sydney, Dubbo, Scone)
+- Three-level office hierarchy (CEO, executives, managers)
+- Realistic document approval chains
+- Version history showing incremental updates
+- Date ranges spanning 2023-2025
+
+VERIFICATION:
+================================================================================
+All documents verified as:
+✓ Valid Microsoft Word 2007+ format (.docx)
+✓ Contains proper DOCX structure
+✓ Page numbers and headers present
+✓ Tables and formatting intact
+✓ 5-9 pages each with substantive content
+✓ Ready for ISO 27001 compliance testing software
+
+USAGE:
+================================================================================
+These documents are designed for:
+- ISO 27001 compliance software testing
+- Policy audit testing
+- Gap detection and reporting
+- Compliance framework validation
+- Document control testing
+- Review date tracking testing
+- Regulatory requirement testing (Australian Privacy Principles)
+
+Ready for immediate use in test environments.
+
+================================================================================
+Generated: 15 February 2026
+Files: 7 policy documents + 2 support documents
+Total: 9 files in delivery directory
+================================================================================

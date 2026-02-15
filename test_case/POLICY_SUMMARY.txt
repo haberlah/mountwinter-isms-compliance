@@ -1,0 +1,242 @@
+=============================================================================
+HORSEINSURE PTY LTD - POLICY DOCUMENTS FOR ISO 27001 COMPLIANCE TESTING
+=============================================================================
+
+Company: HorseInsure Pty Ltd
+ABN: 41 209 837 156
+Employees: 254
+Specialization: Equine Insurance (including inflatable/blow-up horses)
+
+CREATED POLICY DOCUMENTS (7 TOTAL)
+=============================================================================
+
+[1] POL-008 - HUMAN RESOURCES SECURITY POLICY
+    Version: 2.0
+    Owner: James O'Brien (Head of HR)
+    Approved By: Margaret Thornton (CEO)
+    Approval Date: 22 February 2025
+    Next Review: 22 February 2026
+    Pages: 6-7
+    Key Content:
+    - Pre-employment screening requirements
+    - Background checks (5-year history, Police Check for high-risk roles)
+    - Security responsibilities in job descriptions
+    - Security awareness training (annual mandatory)
+    - Access control and authorization procedures
+    - Disciplinary procedures for violations
+    - Termination procedures and offboarding
+    - Third-party/contractor obligations
+    
+    NOTE: No clean desk policy section included
+
+[2] POL-009 - PHYSICAL AND ENVIRONMENTAL SECURITY POLICY
+    Version: 1.2
+    Owner: Tom Bradley (Facilities Manager)
+    Approved By: David Chen (CIO/CISO)
+    Approval Date: 18 July 2025
+    Next Review: 18 July 2026
+    Pages: 6-7
+    Key Content:
+    - Access control zones (restricted, controlled, general)
+    - Access cards and physical keys management
+    - Visitor access and escort procedures
+    - Server room security (two-person rule, access logging)
+    - Equipment security and physical asset protection
+    - Environmental controls (temp/humidity monitoring)
+    - Equipment removal authorization
+    - Workstation locking and screen lock requirements
+    - Printing security and document handling
+    - Clear desk requirements (implicit, no dedicated section)
+    - Off-site and home working security
+    
+    Facility Locations:
+    - Sydney CBD: Level 12, 45 Pitt Street
+    - Dubbo Regional Office
+    - Scone Warehouse
+    
+    NOTE: No explicit "Clear Desk Policy" section - requirements integrated into workstation section
+
+[3] POL-010 - SUPPLIER AND THIRD-PARTY MANAGEMENT POLICY
+    Version: 1.0
+    Owner: Angela Torres (Compliance Manager)
+    Approved By: David Chen (CIO/CISO)
+    Approval Date: 9 May 2025
+    Next Review: 9 May 2026
+    Pages: 6-7
+    Key Content:
+    - Initial supplier due diligence
+    - Risk classification (critical, high, medium, low)
+    - Security assessment requirements
+    - Contract security obligations
+    - Service level agreements (SLAs)
+    - Performance review schedules (quarterly for critical/high-risk)
+    - Security audits (annual for critical, 18-monthly for high-risk)
+    - Incident notification requirements (24-hour notification)
+    - Subcontractor management procedures
+    - Off-boarding procedures and data handling
+    - Supplier risk register maintenance
+
+[4] POL-011 - CHANGE MANAGEMENT POLICY
+    Version: 1.4
+    Owner: Sarah Williams (Head of IT)
+    Approved By: David Chen (CIO/CISO)
+    Approval Date: 28 June 2025
+    Next Review: 28 June 2026
+    Pages: 7-8
+    Key Content:
+    - Change classification:
+      * Standard changes (minimal risk, single approval)
+      * Normal changes (moderate risk, full control)
+      * High-risk changes (significant impact, executive approval)
+    - Change request submission process
+    - Change assessment and approval procedures
+    - Testing and validation requirements
+    - Implementation windows (Tuesday-Thursday, 21:00-23:59 AEST)
+    - Change coordinator responsibilities
+    - Stakeholder communications
+    - Rollback procedures (30-minute downtime threshold)
+    - Post-implementation review (PIR)
+    - Change record and audit trail
+    - Compliance enforcement
+    
+    NOTE: No section on emergency changes - omitted subtly
+
+[5] POL-012 - CRYPTOGRAPHY AND KEY MANAGEMENT POLICY
+    Version: 1.0
+    Owner: Marcus Lee (IT Security Analyst)
+    Approved By: David Chen (CIO/CISO)
+    Approval Date: 14 October 2025
+    Next Review: 14 October 2026
+    Pages: 5-6
+    Key Content:
+    - Encryption standards:
+      * Data in transit: TLS 1.2+, VPN AES-256, S/MIME/PGP RSA 2048-bit
+      * Data at rest: AES-256 encryption, BitLocker, FileVault
+      * Algorithms: AES (128/192/256), RSA (2048-bit min), ECC (256-bit min)
+    - Key generation procedures
+    - Key storage (HSM/KMS, encrypted, role-based access)
+    - Key lifecycle management
+    - Digital certificates (X.509, well-known CAs)
+    - Certificate lifecycle (1-year validity, 90-day renewal)
+    - Certificate revocation procedures
+    - Key destruction requirements
+    - Backup and recovery (geographically separate)
+    - Compliance auditing (quarterly)
+    - Training requirements
+    
+    NOTE: Key management section intentionally thin/vague (1-2 short paragraphs only)
+
+[6] POL-013 - ASSET MANAGEMENT POLICY
+    Version: 1.3
+    Owner: Sarah Williams (Head of IT)
+    Approved By: David Chen (CIO/CISO)
+    Approval Date: 6 December 2024
+    Next Review: 6 December 2025
+    Pages: 6-7
+    Status: OVERDUE FOR REVIEW (as of 15 February 2026)
+    Key Content:
+    - Asset identification and inventory
+    - Asset classification (critical, high, medium, low)
+    - Asset ownership and custodian responsibilities
+    - Acceptable use (business purposes only)
+    - Asset maintenance requirements
+    - Sharing restrictions
+    - End-of-life disposal (DOD 5220.22-M standard)
+    - Employee departure procedures
+    - Audit trail requirements
+    - Physical asset audits (quarterly for critical/high, annual comprehensive)
+    - Compliance reporting
+
+[7] POL-014 - PRIVACY AND DATA PROTECTION POLICY
+    Version: 2.1
+    Owner: Angela Torres (Compliance Manager)
+    Approved By: Margaret Thornton (CEO)
+    Approval Date: 30 January 2025
+    Next Review: 30 January 2026
+    Pages: 8-9
+    Status: PAST REVIEW DATE (last reviewed 30 January 2025, next review 30 January 2026)
+    Key Content:
+    - Compliance with Privacy Act 1988 (Cth) and Australian Privacy Principles
+    - Coverage: Policyholder data, equine health records, claims info, employee data
+    - Australian Privacy Principles implementation:
+      * APP 1: Open and transparent management
+      * APP 2: Solicited collection
+      * APP 3: Unsolicited collection
+      * APP 4: Notification and accuracy
+      * APP 5: Access and correction notification
+      * APP 6: Use/disclosure
+      * APP 7: Direct marketing
+      * APP 9: Government identifiers
+      * APP 10: Quality of personal information
+      * APP 11: Security
+      * APP 12: Access and correction
+      * APP 13: Complaints management
+      
+    - Data breach notification procedure
+    - Individual notification (within 14 days)
+    - Regulatory notification to OAIC (within 30 days)
+    - Data storage and retention (6 years post-relationship)
+    - Individual rights (access, correction, complaints)
+    - Employee responsibilities
+    
+    NOTE: Subtly misses APP 8 (Cross-border Disclosure) - mentioned in principles list
+          but not explicitly covered in section 3
+
+=============================================================================
+DOCUMENT SPECIFICATIONS
+=============================================================================
+
+Format: Microsoft Word 2007+ (.docx)
+Font: Arial throughout
+Page Size: A4
+Page Numbers: Footer with PageNumber field
+Headers: Company branding (HorseInsure Pty Ltd / ABN 41 209 837 156)
+Document Control: Professional tables with version info, owner, approval details
+Structure: 
+  - Policy control information table
+  - Purpose and scope sections
+  - Detailed policy requirements (numbered sections)
+  - Document history table
+  - Page breaks where appropriate
+
+Each document: 5-9 pages with substantive, realistic content
+Total file size: ~12-13 KB per document (professionally formatted)
+
+=============================================================================
+KEY PEOPLE REFERENCED
+=============================================================================
+
+Executive:
+- Margaret "Maggie" Thornton - CEO
+
+IT/Security:
+- David Chen - CIO/CISO
+- Sarah Williams - Head of IT
+- Marcus Lee - IT Security Analyst
+
+Operations:
+- James O'Brien - Head of HR
+- Patricia Kumar - Head of Claims
+- Robert Fitzgerald - Head of Underwriting
+- Angela Torres - Compliance Manager
+- Tom Bradley - Facilities Manager
+
+=============================================================================
+INTENTIONAL TESTING ELEMENTS
+=============================================================================
+
+For ISO 27001 compliance testing purposes, the following subtle 
+gaps/issues are included to test compliance detection:
+
+1. POL-008: No clean desk policy mentioned (implicit requirement)
+2. POL-009: Clear desk requirements integrated, no dedicated section
+3. POL-011: No emergency change procedure - completely omitted
+4. POL-012: Key management section deliberately thin/vague
+5. POL-013: OVERDUE FOR REVIEW (approval date 6 Dec 2024, next review 
+           6 Dec 2025, document created 15 Feb 2026)
+6. POL-014: Subtly missing APP 8 (Cross-border Disclosure) from detailed 
+           coverage while listed in principles section
+
+These gaps are suitable for compliance scanning software testing.
+
+=============================================================================
