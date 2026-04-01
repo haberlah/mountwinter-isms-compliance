@@ -259,6 +259,31 @@ export default function Settings() {
     },
   });
 
+  const resetAssessmentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/assessment/reset");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/controls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organisation-controls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents/stats"] });
+      toast({
+        title: "Assessment Data Reset",
+        description: `Cleared ${data.testRunsCleared} test runs, ${data.aiInteractionsCleared} AI logs, and reset ${data.controlsReset} controls`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Reset Failed",
+        description: error.message || "Failed to reset assessment data",
+        variant: "destructive",
+      });
+    },
+  });
+
   const clearAllDocumentsMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("DELETE", "/api/documents/all");
@@ -891,6 +916,56 @@ export default function Settings() {
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
               </Button>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-md border border-destructive/30">
+              <div>
+                <p className="font-medium">Reset Assessment Data</p>
+                <p className="text-sm text-muted-foreground">
+                  Clear all questionnaire responses, test history, AI logs, and evidence links. Controls and documents are kept.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    disabled={resetAssessmentMutation.isPending}
+                    data-testid="button-reset-assessment"
+                  >
+                    {resetAssessmentMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Resetting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Reset
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Reset all assessment data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently clear all questionnaire responses, test history (pass/fail records),
+                      AI interaction logs, evidence links, and document analysis matches.
+                      Your controls, uploaded documents, and organization profile will be kept intact.
+                      This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => resetAssessmentMutation.mutate()}
+                      data-testid="button-confirm-reset-assessment"
+                    >
+                      Reset Assessment Data
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-md border border-destructive/30">
               <div>

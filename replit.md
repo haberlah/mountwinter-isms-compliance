@@ -2,6 +2,15 @@
 
 ## Recent Changes (April 2026)
 
+### Reset Assessment Data (Completed)
+- "Reset Assessment Data" button in Settings > Data Management section
+- Clears: questionnaire responses, test history, AI interaction logs, evidence links, document analysis matches
+- Preserves: controls, uploaded documents, organization profile, control applicability
+- Wrapped in database transaction for data integrity
+- Confirmation dialog explains what will be cleared vs kept
+- Success toast shows counts of cleared items
+- API endpoint: DELETE /api/assessment/reset
+
 ### Document Management - Delete & Clear All (Completed)
 - Individual document delete: Trash icon button on each document row in Documents page
 - Confirmation dialog before deletion warns about permanent removal and control unlinking

@@ -108,6 +108,9 @@ export interface IStorage {
   // Response Change Log
   createResponseChangeLog(data: InsertResponseChangeLog): Promise<ResponseChangeLogEntry>;
   getResponseHistory(orgControlId: number, questionId: number): Promise<ResponseChangeLogEntry[]>;
+
+  // Reset
+  resetAssessmentData(): Promise<{ testRunsCleared: number; aiInteractionsCleared: number; controlsReset: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1023,6 +1026,31 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(desc(responseChangeLog.createdAt));
+  }
+  // ─── Reset ─────────────────────────────────────────────────────────────────
+
+  async resetAssessmentData(): Promise<{ testRunsCleared: number; aiInteractionsCleared: number; controlsReset: number }> {
+    return db.transaction(async (tx) => {
+      const testRunResult = await tx.select({ count: count() }).from(testRuns);
+      const aiResult = await tx.select({ count: count() }).from(aiInteractions);
+
+      await tx.delete(responseChangeLog);
+      await tx.delete(evidenceLinks);
+      await tx.delete(documentQuestionMatches);
+      await tx.delete(testRuns);
+      await tx.delete(aiInteractions);
+
+      const controlsResult = await tx
+        .update(organisationControls)
+        .set({ implementationResponses: null, implementationUpdatedAt: null })
+        .returning();
+
+      return {
+        testRunsCleared: testRunResult[0]?.count || 0,
+        aiInteractionsCleared: aiResult[0]?.count || 0,
+        controlsReset: controlsResult.length,
+      };
+    });
   }
 }
 

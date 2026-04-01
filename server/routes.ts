@@ -258,6 +258,17 @@ export async function registerRoutes(
     }
   });
 
+  // Reset all assessment data (questionnaire responses, test runs, AI logs)
+  app.delete("/api/assessment/reset", async (req, res) => {
+    try {
+      const result = await storage.resetAssessmentData();
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Error resetting assessment data:", error);
+      res.status(500).json({ error: "Failed to reset assessment data" });
+    }
+  });
+
   // Delete all documents (bulk clear)
   app.delete("/api/documents/all", async (req, res) => {
     try {
