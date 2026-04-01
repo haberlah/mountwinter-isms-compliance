@@ -1,6 +1,7 @@
 import {
   users, controlCategories, controls, organisationControls, testRuns, aiInteractions, organisationProfile, evidenceLinks,
   documents, documentChunks, documentControlLinks, documentQuestionMatches, responseChangeLog,
+  organisations, organisationEmailDomains,
   type User, type InsertUser,
   type ControlCategory, type InsertControlCategory,
   type Control, type InsertControl,
@@ -23,10 +24,9 @@ import { eq, desc, and, or, sql, isNull, count, asc, inArray, sum, ilike } from 
 
 export interface IStorage {
   // Users
-  getUser(id: number): Promise<User | undefined>;
+  getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  getOrCreateDefaultUser(): Promise<User>;
 
   // Categories
   getCategories(): Promise<ControlCategory[]>;
@@ -34,40 +34,40 @@ export interface IStorage {
   getCategoryCount(): Promise<number>;
 
   // Controls
-  getControls(): Promise<(Control & { category: ControlCategory; organisationControl: OrganisationControl | null })[]>;
-  getControlsWithLatestTest(): Promise<ControlWithLatestTest[]>;
-  getControlsStats(): Promise<ControlsStats>;
-  getControlByNumber(controlNumber: string): Promise<ControlWithDetails | undefined>;
+  getControls(orgId: number): Promise<(Control & { category: ControlCategory; organisationControl: OrganisationControl | null })[]>;
+  getControlsWithLatestTest(orgId: number): Promise<ControlWithLatestTest[]>;
+  getControlsStats(orgId: number): Promise<ControlsStats>;
+  getControlByNumber(controlNumber: string, orgId: number): Promise<ControlWithDetails | undefined>;
   getControlById(id: number): Promise<Control | undefined>;
   createControl(control: InsertControl): Promise<Control>;
   updateControlQuestionnaire(controlId: number, questionnaire: any, generatedAt: Date): Promise<void>;
   getControlCount(): Promise<number>;
 
   // Organisation Controls
-  getOrganisationControl(controlId: number): Promise<OrganisationControl | undefined>;
+  getOrganisationControl(controlId: number, orgId: number): Promise<OrganisationControl | undefined>;
   createOrganisationControl(orgControl: InsertOrganisationControl): Promise<OrganisationControl>;
-  updateOrganisationControl(controlId: number, updates: Partial<OrganisationControl>): Promise<OrganisationControl | undefined>;
+  updateOrganisationControl(controlId: number, orgId: number, updates: Partial<OrganisationControl>): Promise<OrganisationControl | undefined>;
 
   // Test Runs (INSERT ONLY - immutable)
-  getTestRuns(): Promise<TestRunWithDetails[]>;
+  getTestRuns(orgId: number): Promise<TestRunWithDetails[]>;
   getTestRunsByOrganisationControl(orgControlId: number): Promise<TestRun[]>;
   createTestRun(testRun: InsertTestRun): Promise<TestRun>;
-  getRecentTestRuns(limit: number): Promise<TestRunWithDetails[]>;
+  getRecentTestRuns(limit: number, orgId: number): Promise<TestRunWithDetails[]>;
 
   // AI Interactions
-  getAiInteractions(): Promise<AiInteraction[]>;
+  getAiInteractions(orgId: number): Promise<AiInteraction[]>;
   createAiInteraction(interaction: InsertAiInteraction): Promise<AiInteraction>;
 
   // Dashboard
-  getDashboardStats(): Promise<DashboardStats>;
+  getDashboardStats(orgId: number): Promise<DashboardStats>;
 
   // Organisation Profile
-  getOrganisationProfile(): Promise<OrganisationProfile | undefined>;
-  upsertOrganisationProfile(profile: Partial<InsertOrganisationProfile>): Promise<OrganisationProfile>;
-  
+  getOrganisationProfile(orgId: number): Promise<OrganisationProfile | undefined>;
+  upsertOrganisationProfile(orgId: number, profile: Partial<InsertOrganisationProfile>): Promise<OrganisationProfile>;
+
   // Control Applicability
-  getControlsApplicability(): Promise<ControlApplicability[]>;
-  updateControlsApplicability(updates: { controlId: number; isApplicable: boolean }[]): Promise<number>;
+  getControlsApplicability(orgId: number): Promise<ControlApplicability[]>;
+  updateControlsApplicability(orgId: number, updates: { controlId: number; isApplicable: boolean }[]): Promise<number>;
 
   // Evidence Links
   getEvidenceLinksByOrgControl(orgControlId: number, questionId?: number): Promise<EvidenceLink[]>;
@@ -81,10 +81,10 @@ export interface IStorage {
   updateDocument(id: number, data: Partial<Document>): Promise<Document | undefined>;
   deleteDocument(id: number): Promise<boolean>;
   forceDeleteDocument(id: number): Promise<boolean>;
-  deleteAllDocuments(): Promise<{ deletedCount: number; s3Keys: string[] }>;
-  getDocumentByHash(fileHash: string): Promise<Document | undefined>;
-  getAllDocuments(options?: { search?: string; type?: string; page?: number; limit?: number }): Promise<{ documents: Document[]; total: number }>;
-  getDocumentStats(): Promise<DocumentStats>;
+  deleteAllDocuments(orgId: number): Promise<{ deletedCount: number; s3Keys: string[] }>;
+  getDocumentByHash(fileHash: string, orgId: number): Promise<Document | undefined>;
+  getAllDocuments(orgId: number, options?: { search?: string; type?: string; page?: number; limit?: number }): Promise<{ documents: Document[]; total: number }>;
+  getDocumentStats(orgId: number): Promise<DocumentStats>;
 
   // Document Chunks
   createDocumentChunks(documentId: number, chunks: Omit<InsertDocumentChunk, "documentId">[]): Promise<DocumentChunk[]>;
@@ -101,8 +101,8 @@ export interface IStorage {
   createDocumentQuestionMatch(data: InsertDocumentQuestionMatch): Promise<DocumentQuestionMatch>;
   softDeleteMatchesByDocumentAndControl(documentId: number, orgControlId: number): Promise<number>;
   getActiveMatchesByOrgControl(orgControlId: number): Promise<DocumentQuestionMatch[]>;
-  acceptSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined>;
-  dismissSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined>;
+  acceptSuggestion(matchId: number, userId: string): Promise<DocumentQuestionMatch | undefined>;
+  dismissSuggestion(matchId: number, userId: string): Promise<DocumentQuestionMatch | undefined>;
   getMatchById(matchId: number): Promise<DocumentQuestionMatch | undefined>;
 
   // Response Change Log
@@ -110,12 +110,12 @@ export interface IStorage {
   getResponseHistory(orgControlId: number, questionId: number): Promise<ResponseChangeLogEntry[]>;
 
   // Reset
-  resetAssessmentData(): Promise<{ testRunsCleared: number; aiInteractionsCleared: number; controlsReset: number }>;
+  resetAssessmentData(orgId: number): Promise<{ testRunsCleared: number; aiInteractionsCleared: number; controlsReset: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
   // Users
-  async getUser(id: number): Promise<User | undefined> {
+  async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
   }
@@ -127,14 +127,6 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
-  }
-
-  async getOrCreateDefaultUser(): Promise<User> {
-    let user = await this.getUserByEmail("admin@local");
-    if (!user) {
-      user = await this.createUser({ email: "admin@local", name: "Admin", role: "admin" });
-    }
     return user;
   }
 
@@ -154,12 +146,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Controls
-  async getControls(): Promise<(Control & { category: ControlCategory; organisationControl: OrganisationControl | null })[]> {
+  async getControls(orgId: number): Promise<(Control & { category: ControlCategory; organisationControl: OrganisationControl | null })[]> {
     const result = await db
       .select()
       .from(controls)
       .innerJoin(controlCategories, eq(controls.categoryId, controlCategories.id))
-      .leftJoin(organisationControls, eq(controls.id, organisationControls.controlId))
+      .leftJoin(organisationControls, and(
+        eq(controls.id, organisationControls.controlId),
+        eq(organisationControls.organisationId, orgId)
+      ))
       .orderBy(asc(controlCategories.sortOrder), asc(controls.controlNumber));
 
     return result.map((row) => ({
@@ -169,17 +164,21 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getControlsWithLatestTest(): Promise<ControlWithLatestTest[]> {
+  async getControlsWithLatestTest(orgId: number): Promise<ControlWithLatestTest[]> {
     const result = await db
       .select()
       .from(controls)
       .innerJoin(controlCategories, eq(controls.categoryId, controlCategories.id))
-      .leftJoin(organisationControls, eq(controls.id, organisationControls.controlId))
+      .leftJoin(organisationControls, and(
+        eq(controls.id, organisationControls.controlId),
+        eq(organisationControls.organisationId, orgId)
+      ))
       .orderBy(asc(controlCategories.sortOrder), asc(controls.controlNumber));
 
     const allTestRuns = await db
       .select()
       .from(testRuns)
+      .where(eq(testRuns.organisationId, orgId))
       .orderBy(desc(testRuns.testDate));
 
     const latestTestByOrgControl = new Map<number, TestRun>();
@@ -193,7 +192,6 @@ export class DatabaseStorage implements IStorage {
       const orgControl = row.organisation_controls;
       const latestTestRun = orgControl ? latestTestByOrgControl.get(orgControl.id) || null : null;
 
-      // Compute questionnaire progress
       let questionnaireProgress: { total: number; answered: number; percentage: number } | undefined;
       const questionnaire = row.controls.aiQuestionnaire as any;
       if (questionnaire?.questions?.length) {
@@ -218,9 +216,9 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async getControlsStats(): Promise<ControlsStats> {
-    const controlsWithTests = await this.getControlsWithLatestTest();
-    
+  async getControlsStats(orgId: number): Promise<ControlsStats> {
+    const controlsWithTests = await this.getControlsWithLatestTest(orgId);
+
     let passed = 0;
     let failed = 0;
     let blocked = 0;
@@ -261,12 +259,15 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getControlByNumber(controlNumber: string): Promise<ControlWithDetails | undefined> {
+  async getControlByNumber(controlNumber: string, orgId: number): Promise<ControlWithDetails | undefined> {
     const result = await db
       .select()
       .from(controls)
       .innerJoin(controlCategories, eq(controls.categoryId, controlCategories.id))
-      .leftJoin(organisationControls, eq(controls.id, organisationControls.controlId))
+      .leftJoin(organisationControls, and(
+        eq(controls.id, organisationControls.controlId),
+        eq(organisationControls.organisationId, orgId)
+      ))
       .where(eq(controls.controlNumber, controlNumber));
 
     if (result.length === 0) return undefined;
@@ -283,7 +284,6 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(testRuns.testDate))
         .limit(10);
 
-      // Attach evidence links to each test run
       for (const run of runs) {
         const links = await this.getEvidenceLinksByTestRun(run.id);
         recentTestRuns.push({ ...run, evidenceLinks: links });
@@ -321,11 +321,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Organisation Controls
-  async getOrganisationControl(controlId: number): Promise<OrganisationControl | undefined> {
+  async getOrganisationControl(controlId: number, orgId: number): Promise<OrganisationControl | undefined> {
     const [orgControl] = await db
       .select()
       .from(organisationControls)
-      .where(eq(organisationControls.controlId, controlId));
+      .where(and(
+        eq(organisationControls.controlId, controlId),
+        eq(organisationControls.organisationId, orgId)
+      ));
     return orgControl || undefined;
   }
 
@@ -334,23 +337,27 @@ export class DatabaseStorage implements IStorage {
     return oc;
   }
 
-  async updateOrganisationControl(controlId: number, updates: Partial<OrganisationControl>): Promise<OrganisationControl | undefined> {
+  async updateOrganisationControl(controlId: number, orgId: number, updates: Partial<OrganisationControl>): Promise<OrganisationControl | undefined> {
     const [updated] = await db
       .update(organisationControls)
       .set(updates)
-      .where(eq(organisationControls.controlId, controlId))
+      .where(and(
+        eq(organisationControls.controlId, controlId),
+        eq(organisationControls.organisationId, orgId)
+      ))
       .returning();
     return updated || undefined;
   }
 
   // Test Runs
-  async getTestRuns(): Promise<TestRunWithDetails[]> {
+  async getTestRuns(orgId: number): Promise<TestRunWithDetails[]> {
     const result = await db
       .select()
       .from(testRuns)
       .innerJoin(organisationControls, eq(testRuns.organisationControlId, organisationControls.id))
       .innerJoin(controls, eq(organisationControls.controlId, controls.id))
       .innerJoin(users, eq(testRuns.testerUserId, users.id))
+      .where(eq(testRuns.organisationId, orgId))
       .orderBy(desc(testRuns.testDate));
 
     return result.map((row) => ({
@@ -376,13 +383,14 @@ export class DatabaseStorage implements IStorage {
     return tr;
   }
 
-  async getRecentTestRuns(limit: number): Promise<TestRunWithDetails[]> {
+  async getRecentTestRuns(limit: number, orgId: number): Promise<TestRunWithDetails[]> {
     const result = await db
       .select()
       .from(testRuns)
       .innerJoin(organisationControls, eq(testRuns.organisationControlId, organisationControls.id))
       .innerJoin(controls, eq(organisationControls.controlId, controls.id))
       .innerJoin(users, eq(testRuns.testerUserId, users.id))
+      .where(eq(testRuns.organisationId, orgId))
       .orderBy(desc(testRuns.testDate))
       .limit(limit);
 
@@ -397,8 +405,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // AI Interactions
-  async getAiInteractions(): Promise<AiInteraction[]> {
-    return db.select().from(aiInteractions).orderBy(desc(aiInteractions.createdAt));
+  async getAiInteractions(orgId: number): Promise<AiInteraction[]> {
+    return db.select().from(aiInteractions).where(eq(aiInteractions.organisationId, orgId)).orderBy(desc(aiInteractions.createdAt));
   }
 
   async createAiInteraction(interaction: InsertAiInteraction): Promise<AiInteraction> {
@@ -407,8 +415,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Dashboard Stats
-  async getDashboardStats(): Promise<DashboardStats> {
-    const allControls = await this.getControls();
+  async getDashboardStats(orgId: number): Promise<DashboardStats> {
+    const allControls = await this.getControls(orgId);
     const totalControls = allControls.length;
 
     const applicableControls = allControls.filter(
@@ -416,7 +424,6 @@ export class DatabaseStorage implements IStorage {
     );
     const applicableCount = applicableControls.length;
 
-    // Get latest test run status for each organisation control
     const latestTestRuns = await db
       .select({
         organisationControlId: testRuns.organisationControlId,
@@ -424,14 +431,15 @@ export class DatabaseStorage implements IStorage {
         testDate: testRuns.testDate,
       })
       .from(testRuns)
+      .where(eq(testRuns.organisationId, orgId))
       .orderBy(desc(testRuns.testDate));
 
     const latestByOrgControl = new Map<number, { status: string; testDate: Date }>();
     for (const run of latestTestRuns) {
       if (!latestByOrgControl.has(run.organisationControlId)) {
-        latestByOrgControl.set(run.organisationControlId, { 
-          status: run.status, 
-          testDate: run.testDate 
+        latestByOrgControl.set(run.organisationControlId, {
+          status: run.status,
+          testDate: run.testDate
         });
       }
     }
@@ -471,11 +479,10 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    const compliancePercentage = applicableCount > 0 
-      ? (passedControls / applicableCount) * 100 
+    const compliancePercentage = applicableCount > 0
+      ? (passedControls / applicableCount) * 100
       : 0;
 
-    // Questionnaire progress calculation
     let totalQuestions = 0;
     let answeredQuestions = 0;
     let controlsComplete = 0;
@@ -503,11 +510,10 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    const questionnairePercentage = totalQuestions > 0 
-      ? (answeredQuestions / totalQuestions) * 100 
+    const questionnairePercentage = totalQuestions > 0
+      ? (answeredQuestions / totalQuestions) * 100
       : 0;
 
-    // Category breakdown
     const categories = await this.getCategories();
     const categoryBreakdown = categories.map((cat) => {
       const catControls = applicableControls.filter((c) => c.categoryId === cat.id);
@@ -545,7 +551,6 @@ export class DatabaseStorage implements IStorage {
       };
     });
 
-    // Due soon - controls due in next 30 days (including overdue)
     const dueSoon = applicableControls
       .filter((c) => c.organisationControl?.nextDueDate)
       .map((c) => {
@@ -564,18 +569,16 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
       .slice(0, 10);
 
-    // Recent activity - last 10 test runs with details
-    const recentTestRuns = await this.getRecentTestRuns(10);
+    const recentTestRuns = await this.getRecentTestRuns(10, orgId);
     const recentActivity = recentTestRuns.map(run => ({
       testDate: run.testDate.toISOString(),
       controlNumber: run.organisationControl.control.controlNumber,
       controlName: run.organisationControl.control.name,
       status: run.status,
-      testerName: run.tester.name,
+      testerName: [run.tester.firstName, run.tester.lastName].filter(Boolean).join(" ") || "Unknown",
     }));
 
-    // Document coverage statistics
-    const docStats = await this.getDocumentStats();
+    const docStats = await this.getDocumentStats(orgId);
 
     return {
       totalControls,
@@ -604,14 +607,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Organisation Profile
-  async getOrganisationProfile(): Promise<OrganisationProfile | undefined> {
-    const [profile] = await db.select().from(organisationProfile).where(eq(organisationProfile.organisationId, 1));
+  async getOrganisationProfile(orgId: number): Promise<OrganisationProfile | undefined> {
+    const [profile] = await db.select().from(organisationProfile).where(eq(organisationProfile.organisationId, orgId));
     return profile || undefined;
   }
 
-  async upsertOrganisationProfile(profile: Partial<InsertOrganisationProfile>): Promise<OrganisationProfile> {
-    const existing = await this.getOrganisationProfile();
-    
+  async upsertOrganisationProfile(orgId: number, profile: Partial<InsertOrganisationProfile>): Promise<OrganisationProfile> {
+    const existing = await this.getOrganisationProfile(orgId);
+
     if (existing) {
       const [updated] = await db
         .update(organisationProfile)
@@ -626,7 +629,7 @@ export class DatabaseStorage implements IStorage {
       const [created] = await db
         .insert(organisationProfile)
         .values({
-          organisationId: 1,
+          organisationId: orgId,
           ...profile,
         } as any)
         .returning();
@@ -635,7 +638,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Control Applicability
-  async getControlsApplicability(): Promise<ControlApplicability[]> {
+  async getControlsApplicability(orgId: number): Promise<ControlApplicability[]> {
     const result = await db
       .select({
         controlId: controls.id,
@@ -646,7 +649,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(controls)
       .innerJoin(controlCategories, eq(controls.categoryId, controlCategories.id))
-      .innerJoin(organisationControls, eq(controls.id, organisationControls.controlId))
+      .innerJoin(organisationControls, and(
+        eq(controls.id, organisationControls.controlId),
+        eq(organisationControls.organisationId, orgId)
+      ))
       .orderBy(asc(controlCategories.sortOrder), asc(controls.controlNumber));
 
     return result.map(row => ({
@@ -658,14 +664,17 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async updateControlsApplicability(updates: { controlId: number; isApplicable: boolean }[]): Promise<number> {
+  async updateControlsApplicability(orgId: number, updates: { controlId: number; isApplicable: boolean }[]): Promise<number> {
     let updatedCount = 0;
 
     for (const update of updates) {
       const result = await db
         .update(organisationControls)
         .set({ isApplicable: update.isApplicable })
-        .where(eq(organisationControls.controlId, update.controlId))
+        .where(and(
+          eq(organisationControls.controlId, update.controlId),
+          eq(organisationControls.organisationId, orgId)
+        ))
         .returning();
 
       if (result.length > 0) {
@@ -707,8 +716,7 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  // ─── Documents ──────────────────────────────────────────────────────────────
-
+  // Documents
   async createDocument(data: InsertDocument): Promise<Document> {
     const [doc] = await db.insert(documents).values(data).returning();
     return doc;
@@ -748,34 +756,39 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async deleteAllDocuments(): Promise<{ deletedCount: number; s3Keys: string[] }> {
+  async deleteAllDocuments(orgId: number): Promise<{ deletedCount: number; s3Keys: string[] }> {
     return db.transaction(async (tx) => {
-      const allDocs = await tx.select({ id: documents.id, s3Key: documents.s3Key }).from(documents);
+      const allDocs = await tx.select({ id: documents.id, s3Key: documents.s3Key }).from(documents).where(eq(documents.organisationId, orgId));
+      if (allDocs.length === 0) return { deletedCount: 0, s3Keys: [] };
+      const docIds = allDocs.map(d => d.id);
       await tx.update(responseChangeLog)
         .set({ sourceDocumentId: null, sourceMatchId: null })
-        .where(sql`${responseChangeLog.sourceDocumentId} IS NOT NULL`);
+        .where(inArray(responseChangeLog.sourceDocumentId, docIds));
       await tx.update(evidenceLinks)
         .set({ documentId: null })
-        .where(sql`${evidenceLinks.documentId} IS NOT NULL`);
-      await tx.delete(documentQuestionMatches);
-      await tx.delete(documentControlLinks);
-      await tx.delete(documentChunks);
-      await tx.delete(documents);
+        .where(inArray(evidenceLinks.documentId, docIds));
+      await tx.delete(documentQuestionMatches).where(inArray(documentQuestionMatches.documentId, docIds));
+      await tx.delete(documentControlLinks).where(inArray(documentControlLinks.documentId, docIds));
+      await tx.delete(documentChunks).where(inArray(documentChunks.documentId, docIds));
+      await tx.delete(documents).where(inArray(documents.id, docIds));
       return { deletedCount: allDocs.length, s3Keys: allDocs.map(d => d.s3Key) };
     });
   }
 
-  async getDocumentByHash(fileHash: string): Promise<Document | undefined> {
-    const [doc] = await db.select().from(documents).where(eq(documents.fileHash, fileHash));
+  async getDocumentByHash(fileHash: string, orgId: number): Promise<Document | undefined> {
+    const [doc] = await db.select().from(documents).where(and(
+      eq(documents.fileHash, fileHash),
+      eq(documents.organisationId, orgId)
+    ));
     return doc || undefined;
   }
 
-  async getAllDocuments(options?: { search?: string; type?: string; page?: number; limit?: number }): Promise<{ documents: Document[]; total: number }> {
+  async getAllDocuments(orgId: number, options?: { search?: string; type?: string; page?: number; limit?: number }): Promise<{ documents: Document[]; total: number }> {
     const page = options?.page ?? 1;
     const limit = options?.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    const conditions = [];
+    const conditions: any[] = [eq(documents.organisationId, orgId)];
     if (options?.search) {
       conditions.push(
         or(
@@ -788,7 +801,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(documents.evidenceType, options.type as any));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     const [totalResult, docs] = await Promise.all([
       db.select({ count: count() }).from(documents).where(whereClause),
@@ -807,22 +820,24 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getDocumentStats(): Promise<DocumentStats> {
-    // Total documents and file size
+  async getDocumentStats(orgId: number): Promise<DocumentStats> {
+    const orgCondition = eq(documents.organisationId, orgId);
+
     const [docAgg] = await db
       .select({
         totalDocuments: count(),
         totalFileSize: sum(documents.fileSize),
       })
-      .from(documents);
+      .from(documents)
+      .where(orgCondition);
 
-    // Documents by evidence type
     const typeRows = await db
       .select({
         evidenceType: documents.evidenceType,
         count: count(),
       })
       .from(documents)
+      .where(orgCondition)
       .groupBy(documents.evidenceType);
 
     const documentsByType: Record<string, number> = {};
@@ -830,13 +845,12 @@ export class DatabaseStorage implements IStorage {
       documentsByType[row.evidenceType || "UNTYPED"] = row.count;
     }
 
-    // Controls with evidence (controls that have at least one document linked)
     const controlsWithDocs = await db
       .selectDistinct({ orgControlId: documentControlLinks.organisationControlId })
-      .from(documentControlLinks);
+      .from(documentControlLinks)
+      .where(eq(documentControlLinks.organisationId, orgId));
     const controlsWithEvidence = controlsWithDocs.length;
 
-    // Pending suggestions (matches awaiting user review)
     const [pendingResult] = await db
       .select({ count: count() })
       .from(documentQuestionMatches)
@@ -844,15 +858,17 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(documentQuestionMatches.isActive, true),
           isNull(documentQuestionMatches.userAccepted),
+          eq(documentQuestionMatches.organisationId, orgId),
         )
       );
 
-    // Controls with gaps: applicable controls that have NO document matches at all
-    // (or only weak matches). Count applicable controls minus those with evidence.
     const [totalApplicable] = await db
       .select({ count: count() })
       .from(organisationControls)
-      .where(eq(organisationControls.isApplicable, true));
+      .where(and(
+        eq(organisationControls.isApplicable, true),
+        eq(organisationControls.organisationId, orgId)
+      ));
     const controlsWithGaps = Math.max(0, (totalApplicable?.count || 0) - controlsWithEvidence);
 
     return {
@@ -865,8 +881,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  // ─── Document Chunks ────────────────────────────────────────────────────────
-
+  // Document Chunks
   async createDocumentChunks(documentId: number, chunks: Omit<InsertDocumentChunk, "documentId">[]): Promise<DocumentChunk[]> {
     if (chunks.length === 0) return [];
     const values = chunks.map((chunk) => ({ ...chunk, documentId }));
@@ -881,8 +896,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(documentChunks.chunkIndex));
   }
 
-  // ─── Document-Control Links ─────────────────────────────────────────────────
-
+  // Document-Control Links
   async createDocumentControlLink(data: InsertDocumentControlLink): Promise<DocumentControlLink> {
     const [link] = await db.insert(documentControlLinks).values(data).returning();
     return link;
@@ -939,8 +953,7 @@ export class DatabaseStorage implements IStorage {
     return link || undefined;
   }
 
-  // ─── Document Question Matches ──────────────────────────────────────────────
-
+  // Document Question Matches
   async createDocumentQuestionMatch(data: InsertDocumentQuestionMatch): Promise<DocumentQuestionMatch> {
     const [match] = await db.insert(documentQuestionMatches).values(data).returning();
     return match;
@@ -974,7 +987,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(documentQuestionMatches.compositeScore));
   }
 
-  async acceptSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined> {
+  async acceptSuggestion(matchId: number, userId: string): Promise<DocumentQuestionMatch | undefined> {
     const [match] = await db
       .update(documentQuestionMatches)
       .set({
@@ -987,7 +1000,7 @@ export class DatabaseStorage implements IStorage {
     return match || undefined;
   }
 
-  async dismissSuggestion(matchId: number, userId: number): Promise<DocumentQuestionMatch | undefined> {
+  async dismissSuggestion(matchId: number, userId: string): Promise<DocumentQuestionMatch | undefined> {
     const [match] = await db
       .update(documentQuestionMatches)
       .set({
@@ -1008,8 +1021,7 @@ export class DatabaseStorage implements IStorage {
     return match || undefined;
   }
 
-  // ─── Response Change Log ────────────────────────────────────────────────────
-
+  // Response Change Log
   async createResponseChangeLog(data: InsertResponseChangeLog): Promise<ResponseChangeLogEntry> {
     const [entry] = await db.insert(responseChangeLog).values(data).returning();
     return entry;
@@ -1029,20 +1041,21 @@ export class DatabaseStorage implements IStorage {
   }
   // ─── Reset ─────────────────────────────────────────────────────────────────
 
-  async resetAssessmentData(): Promise<{ testRunsCleared: number; aiInteractionsCleared: number; controlsReset: number }> {
+  async resetAssessmentData(orgId: number): Promise<{ testRunsCleared: number; aiInteractionsCleared: number; controlsReset: number }> {
     return db.transaction(async (tx) => {
-      const testRunResult = await tx.select({ count: count() }).from(testRuns);
-      const aiResult = await tx.select({ count: count() }).from(aiInteractions);
+      const testRunResult = await tx.select({ count: count() }).from(testRuns).where(eq(testRuns.organisationId, orgId));
+      const aiResult = await tx.select({ count: count() }).from(aiInteractions).where(eq(aiInteractions.organisationId, orgId));
 
-      await tx.delete(responseChangeLog);
-      await tx.delete(evidenceLinks);
-      await tx.delete(documentQuestionMatches);
-      await tx.delete(testRuns);
-      await tx.delete(aiInteractions);
+      await tx.delete(responseChangeLog).where(eq(responseChangeLog.organisationId, orgId));
+      await tx.delete(evidenceLinks).where(eq(evidenceLinks.organisationId, orgId));
+      await tx.delete(documentQuestionMatches).where(eq(documentQuestionMatches.organisationId, orgId));
+      await tx.delete(testRuns).where(eq(testRuns.organisationId, orgId));
+      await tx.delete(aiInteractions).where(eq(aiInteractions.organisationId, orgId));
 
       const controlsResult = await tx
         .update(organisationControls)
         .set({ implementationResponses: null, implementationUpdatedAt: null })
+        .where(eq(organisationControls.organisationId, orgId))
         .returning();
 
       return {

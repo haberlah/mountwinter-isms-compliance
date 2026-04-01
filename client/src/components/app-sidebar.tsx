@@ -4,6 +4,7 @@ import {
   Shield,
   FolderOpen,
   Settings,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -16,7 +17,9 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 import mwcLogo from "@assets/mwc_logo.png";
 
 const navItems = [
@@ -44,7 +47,17 @@ const navItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user } = useCurrentUser();
+  const { user, logout } = useAuth();
+
+  const displayName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "User"
+    : "User";
+  const initials = user
+    ? [user.firstName, user.lastName]
+        .filter(Boolean)
+        .map((n) => n!.charAt(0).toUpperCase())
+        .join("") || (user.email ? user.email.charAt(0).toUpperCase() : "U")
+    : "U";
 
   return (
     <Sidebar>
@@ -84,14 +97,30 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-medium">
-            {user.name.charAt(0)}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar className="h-8 w-8 shrink-0" data-testid="img-user-avatar">
+              {user?.profileImageUrl && (
+                <AvatarImage src={user.profileImageUrl} alt={displayName} />
+              )}
+              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-medium truncate" data-testid="text-username">{displayName}</span>
+              <span className="text-xs text-muted-foreground capitalize" data-testid="text-user-role">
+                {user?.role?.replace(/_/g, " ") || "admin"}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{user.name}</span>
-            <span className="text-xs text-muted-foreground capitalize">{user.role}</span>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 h-8 w-8"
+            onClick={() => logout()}
+            data-testid="button-logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </SidebarFooter>
     </Sidebar>

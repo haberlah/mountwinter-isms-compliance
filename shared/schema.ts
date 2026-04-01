@@ -3,6 +3,8 @@ import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, pgEnum, rea
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export * from "./models/auth";
+
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["admin", "compliance_officer", "auditor"]);
 export const frequencyEnum = pgEnum("frequency", ["Annual", "Quarterly", "Monthly"]);
@@ -51,7 +53,7 @@ export interface QuestionResponse {
   response_text: string;
   evidence_references: string[];
   last_updated: string;
-  answered_by_user_id: number;
+  answered_by_user_id: string;
 }
 
 export interface ImplementationResponses {
@@ -63,13 +65,33 @@ export interface ImplementationResponses {
   };
 }
 
-// Users table
-export const users = pgTable("users", {
+// ─── Organisations ──────────────────────────────────────────────────────────
+
+export const organisations = pgTable("organisations", {
   id: serial("id").primaryKey(),
-  email: varchar("email", { length: 320 }).unique().default("admin@local").notNull(),
-  name: text("name").default("Admin").notNull(),
-  role: userRoleEnum("role").default("admin").notNull(),
+  name: text("name").notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const organisationEmailDomains = pgTable("organisation_email_domains", {
+  id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id),
+  domain: varchar("domain", { length: 255 }).notNull().unique(),
+});
+
+// ─── Users (Replit Auth compatible) ─────────────────────────────────────────
+
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  role: userRoleEnum("role").default("admin").notNull(),
+  organisationId: integer("organisation_id").references(() => organisations.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Control Categories
@@ -96,11 +118,12 @@ export const controls = pgTable("controls", {
   questionnaireGeneratedAt: timestamp("questionnaire_generated_at"),
 });
 
-// Organisation Controls (per-control settings)
+// Organisation Controls (per-control settings, scoped by org)
 export const organisationControls = pgTable("organisation_controls", {
   id: serial("id").primaryKey(),
-  controlId: integer("control_id").notNull().references(() => controls.id).unique(),
-  assignedUserId: integer("assigned_user_id").references(() => users.id),
+  controlId: integer("control_id").notNull().references(() => controls.id),
+  organisationId: integer("organisation_id").references(() => organisations.id),
+  assignedUserId: varchar("assigned_user_id").references(() => users.id),
   frequency: frequencyEnum("frequency"),
   startQuarter: quarterEnum("start_quarter"),
   isApplicable: boolean("is_applicable").notNull().default(true),
@@ -109,14 +132,17 @@ export const organisationControls = pgTable("organisation_controls", {
   selectedPersona: varchar("selected_persona", { length: 20 }).default("Auditor"),
   implementationResponses: jsonb("implementation_responses").$type<ImplementationResponses>(),
   implementationUpdatedAt: timestamp("implementation_updated_at"),
-});
+}, (table) => [
+  uniqueIndex("idx_org_controls_control_org").on(table.controlId, table.organisationId),
+]);
 
 // Test Runs (immutable audit trail - INSERT ONLY)
 export const testRuns = pgTable("test_runs", {
   id: serial("id").primaryKey(),
   organisationControlId: integer("organisation_control_id").notNull().references(() => organisationControls.id),
+  organisationId: integer("organisation_id").references(() => organisations.id),
   testDate: timestamp("test_date").defaultNow().notNull(),
-  testerUserId: integer("tester_user_id").notNull().references(() => users.id),
+  testerUserId: varchar("tester_user_id").notNull().references(() => users.id),
   status: testStatusEnum("status").notNull(),
   comments: text("comments"),
   aiAnalysis: text("ai_analysis"),
@@ -129,7 +155,8 @@ export const testRuns = pgTable("test_runs", {
 // AI Interactions (audit log of all AI API calls)
 export const aiInteractions = pgTable("ai_interactions", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  organisationId: integer("organisation_id").references(() => organisations.id),
   interactionType: interactionTypeEnum("interaction_type").notNull(),
   controlId: integer("control_id").references(() => controls.id),
   testRunId: integer("test_run_id").references(() => testRuns.id),
@@ -143,7 +170,7 @@ export const aiInteractions = pgTable("ai_interactions", {
 // Organisation Profile (for AI context and personalization)
 export const organisationProfile = pgTable("organisation_profile", {
   id: serial("id").primaryKey(),
-  organisationId: integer("organisation_id").default(1).notNull(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id),
   companyName: text("company_name"),
   industry: text("industry"),
   companySize: text("company_size"),
@@ -162,6 +189,7 @@ export const organisationProfile = pgTable("organisation_profile", {
 export const evidenceLinks = pgTable("evidence_links", {
   id: serial("id").primaryKey(),
   organisationControlId: integer("organisation_control_id").references(() => organisationControls.id),
+  organisationId: integer("organisation_id").references(() => organisations.id),
   questionId: integer("question_id"),
   testRunId: integer("test_run_id").references(() => testRuns.id),
   title: text("title").notNull(),
@@ -169,13 +197,14 @@ export const evidenceLinks = pgTable("evidence_links", {
   evidenceType: evidenceTypeEnum("evidence_type"),
   description: text("description"),
   documentId: integer("document_id").references(() => documents.id),
-  addedByUserId: integer("added_by_user_id").notNull().references(() => users.id),
+  addedByUserId: varchar("added_by_user_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Documents (central document repository)
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").references(() => organisations.id),
   title: text("title").notNull(),
   originalFilename: text("original_filename").notNull(),
   s3Key: text("s3_key").notNull(),
@@ -190,7 +219,7 @@ export const documents = pgTable("documents", {
   extractionStatus: documentStatusEnum("extraction_status").default("pending").notNull(),
   extractionError: text("extraction_error"),
   pageCount: integer("page_count"),
-  uploadedByUserId: integer("uploaded_by_user_id").notNull().references(() => users.id),
+  uploadedByUserId: varchar("uploaded_by_user_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -220,7 +249,8 @@ export const documentControlLinks = pgTable("document_control_links", {
   id: serial("id").primaryKey(),
   documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "restrict" }),
   organisationControlId: integer("organisation_control_id").notNull().references(() => organisationControls.id, { onDelete: "restrict" }),
-  linkedByUserId: integer("linked_by_user_id").notNull().references(() => users.id),
+  organisationId: integer("organisation_id").references(() => organisations.id),
+  linkedByUserId: varchar("linked_by_user_id").notNull().references(() => users.id),
   analysisStatus: documentStatusEnum("analysis_status").default("pending").notNull(),
   analysisCompletedAt: timestamp("analysis_completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -235,6 +265,7 @@ export const documentQuestionMatches = pgTable("document_question_matches", {
   id: serial("id").primaryKey(),
   documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "restrict" }),
   organisationControlId: integer("organisation_control_id").notNull().references(() => organisationControls.id),
+  organisationId: integer("organisation_id").references(() => organisations.id),
   questionId: integer("question_id").notNull(),
   contentRelevance: real("content_relevance").notNull(),
   evidenceTypeMatch: boolean("evidence_type_match").notNull(),
@@ -245,7 +276,7 @@ export const documentQuestionMatches = pgTable("document_question_matches", {
   suggestedResponse: text("suggested_response"),
   userAccepted: boolean("user_accepted"),
   acceptedAt: timestamp("accepted_at"),
-  acceptedByUserId: integer("accepted_by_user_id").references(() => users.id),
+  acceptedByUserId: varchar("accepted_by_user_id").references(() => users.id),
   isCrossControl: boolean("is_cross_control").default(false).notNull(),
   sourceControlId: integer("source_control_id"),
   chunkId: integer("chunk_id").references(() => documentChunks.id),
@@ -263,20 +294,38 @@ export const documentQuestionMatches = pgTable("document_question_matches", {
 export const responseChangeLog = pgTable("response_change_log", {
   id: serial("id").primaryKey(),
   organisationControlId: integer("organisation_control_id").notNull().references(() => organisationControls.id),
+  organisationId: integer("organisation_id").references(() => organisations.id),
   questionId: integer("question_id").notNull(),
   previousResponse: text("previous_response"),
   newResponse: text("new_response").notNull(),
   changeSource: varchar("change_source", { length: 50 }).notNull(),
   sourceDocumentId: integer("source_document_id").references(() => documents.id),
   sourceMatchId: integer("source_match_id").references(() => documentQuestionMatches.id),
-  changedByUserId: integer("changed_by_user_id").notNull().references(() => users.id),
+  changedByUserId: varchar("changed_by_user_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_rcl_org_control_question").on(table.organisationControlId, table.questionId),
 ]);
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const organisationsRelations = relations(organisations, ({ many }) => ({
+  emailDomains: many(organisationEmailDomains),
+  users: many(users),
+  organisationControls: many(organisationControls),
+}));
+
+export const organisationEmailDomainsRelations = relations(organisationEmailDomains, ({ one }) => ({
+  organisation: one(organisations, {
+    fields: [organisationEmailDomains.organisationId],
+    references: [organisations.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  organisation: one(organisations, {
+    fields: [users.organisationId],
+    references: [organisations.id],
+  }),
   organisationControls: many(organisationControls),
   testRuns: many(testRuns),
   aiInteractions: many(aiInteractions),
@@ -293,7 +342,7 @@ export const controlsRelations = relations(controls, ({ one, many }) => ({
     fields: [controls.categoryId],
     references: [controlCategories.id],
   }),
-  organisationControl: one(organisationControls),
+  organisationControls: many(organisationControls),
   aiInteractions: many(aiInteractions),
 }));
 
@@ -301,6 +350,10 @@ export const organisationControlsRelations = relations(organisationControls, ({ 
   control: one(controls, {
     fields: [organisationControls.controlId],
     references: [controls.id],
+  }),
+  organisation: one(organisations, {
+    fields: [organisationControls.organisationId],
+    references: [organisations.id],
   }),
   assignedUser: one(users, {
     fields: [organisationControls.assignedUserId],
@@ -359,7 +412,6 @@ export const evidenceLinksRelations = relations(evidenceLinks, ({ one }) => ({
   }),
 }));
 
-// Document relations
 export const documentsRelations = relations(documents, ({ one, many }) => ({
   uploadedBy: one(users, {
     fields: [documents.uploadedByUserId],
@@ -432,7 +484,9 @@ export const responseChangeLogRelations = relations(responseChangeLog, ({ one })
 }));
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
+export const insertOrganisationSchema = createInsertSchema(organisations).omit({ id: true, createdAt: true });
+export const insertOrganisationEmailDomainSchema = createInsertSchema(organisationEmailDomains).omit({ id: true });
 export const insertControlCategorySchema = createInsertSchema(controlCategories).omit({ id: true });
 export const insertControlSchema = createInsertSchema(controls).omit({ id: true });
 export const insertOrganisationControlSchema = createInsertSchema(organisationControls).omit({ id: true });
@@ -448,7 +502,13 @@ export const insertResponseChangeLogSchema = createInsertSchema(responseChangeLo
 
 // Types
 export type User = typeof users.$inferSelect;
+export type UpsertUser = typeof users.$inferInsert;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Organisation = typeof organisations.$inferSelect;
+export type InsertOrganisation = z.infer<typeof insertOrganisationSchema>;
+
+export type OrganisationEmailDomain = typeof organisationEmailDomains.$inferSelect;
 
 export type ControlCategory = typeof controlCategories.$inferSelect;
 export type InsertControlCategory = z.infer<typeof insertControlCategorySchema>;

@@ -1,15 +1,20 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { seedDatabase } from "./seed";
 import { generateQuestionnaire, analyzeTestResponse, DEFAULT_MODEL, AIConfigurationError, checkAIConfiguration, streamAnalysis, buildOrganisationContextSection, type OntologyQuestion as AIQuestion, type QuestionResponse as AIQuestionResponse, type TestRunHistory } from "./ai";
-import { insertTestRunSchema, type Persona, type ImplementationResponses, type QuestionResponse, type ControlQuestionnaire, type OntologyQuestion } from "@shared/schema";
+import { insertTestRunSchema, type Persona, type ImplementationResponses, type QuestionResponse, type ControlQuestionnaire, type OntologyQuestion, type User } from "@shared/schema";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { upload } from "./upload";
 import { isStorageConfigured, generateStorageKey, uploadFile, downloadFile, deleteFile, checkStorageConnection, getBackendName } from "./storage-backend";
 import { computeFileHash, extractText, sanitiseTextForAI, chunkText } from "./document-processor";
 import { analyseDocumentForControl, type DocumentChunkInput } from "./document-analyser";
+import { isAuthenticated } from "./replit_integrations/auth";
+import { authStorage } from "./replit_integrations/auth/storage";
+import { organisationControls as organisationControlsTable, evidenceLinks as evidenceLinksTable } from "@shared/schema";
+import { db } from "./db";
+import { eq as drizzleEq, and as drizzleAnd } from "drizzle-orm";
 
 const personaSchema = z.enum(["Auditor", "Advisor", "Analyst"]);
 
@@ -19,18 +24,39 @@ const questionResponseSchema = z.object({
   evidence_references: z.array(z.string()).default([]),
 });
 
+function getUserDisplayName(user: User): string {
+  return [user.firstName, user.lastName].filter(Boolean).join(" ") || "Unknown";
+}
+
+async function getAppUser(req: any): Promise<User | null> {
+  const userId = req.user?.claims?.sub;
+  if (!userId) return null;
+  const user = await authStorage.getUser(userId);
+  return user || null;
+}
+
+const requireOrg: RequestHandler = async (req: any, res, next) => {
+  const user = await getAppUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  if (!user.organisationId) {
+    return res.status(403).json({ error: "You are not a member of any organisation" });
+  }
+  req.appUser = user;
+  next();
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Seed database on startup
   try {
     await seedDatabase();
   } catch (error) {
     console.error("Error seeding database:", error);
   }
 
-  // Check AI configuration on startup
   const aiConfig = checkAIConfiguration();
   if (!aiConfig.configured) {
     console.warn("⚠️  AI Configuration Warning:", aiConfig.message);
@@ -39,7 +65,6 @@ export async function registerRoutes(
     console.log("✓ AI service configured");
   }
 
-  // Check document storage configuration on startup
   if (isStorageConfigured()) {
     try {
       await checkStorageConnection();
@@ -55,8 +80,7 @@ export async function registerRoutes(
 
   // ─── Document Repository CRUD ──────────────────────────────────────────────
 
-  // Upload documents to central repository
-  app.post("/api/documents/upload", upload.array("files", 10), async (req, res) => {
+  app.post("/api/documents/upload", isAuthenticated, requireOrg, upload.array("files", 10), async (req: any, res) => {
     try {
       if (!isStorageConfigured()) {
         return res.status(503).json({ error: "Document storage is not configured" });
@@ -67,25 +91,23 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No files provided" });
       }
 
-      const user = await storage.getOrCreateDefaultUser();
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
       const results: any[] = [];
 
       for (const file of files) {
-        // Compute hash for deduplication
         const fileHash = computeFileHash(file.buffer);
-        const existing = await storage.getDocumentByHash(fileHash);
+        const existing = await storage.getDocumentByHash(fileHash, orgId);
 
         if (existing) {
           results.push({ document: existing, isDuplicate: true });
           continue;
         }
 
-        // Upload to storage backend first
         const storageKey = generateStorageKey(file.originalname);
         const uploadResult = await uploadFile(file.buffer, storageKey, file.mimetype);
 
         try {
-          // Create DB record
           const document = await storage.createDocument({
             title: req.body.title || file.originalname.replace(/\.[^.]+$/, ""),
             originalFilename: file.originalname,
@@ -99,15 +121,14 @@ export async function registerRoutes(
             documentDate: req.body.documentDate ? new Date(req.body.documentDate) : null,
             uploadedByUserId: user.id,
             extractionStatus: "pending",
+            organisationId: orgId,
           });
 
-          // Extract text asynchronously (non-blocking for the response)
           try {
             await storage.updateDocument(document.id, { extractionStatus: "extracting" });
             const { text, pageCount } = await extractText(file.buffer, file.mimetype);
             const sanitisedText = sanitiseTextForAI(text, file.originalname);
 
-            // Chunk the text
             const chunks = chunkText(sanitisedText);
             await storage.createDocumentChunks(
               document.id,
@@ -138,7 +159,6 @@ export async function registerRoutes(
             results.push({ document: await storage.getDocument(document.id), isDuplicate: false });
           }
         } catch (dbError) {
-          // Clean up storage object if DB insert fails
           console.error(`[Routes] DB insert failed, cleaning up storage key "${storageKey}":`, dbError);
           await deleteFile(storageKey).catch(() => {});
           throw dbError;
@@ -152,15 +172,16 @@ export async function registerRoutes(
     }
   });
 
-  // List all documents with search, filtering, and pagination
-  app.get("/api/documents", async (req, res) => {
+  app.get("/api/documents", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
       const search = req.query.search as string | undefined;
       const type = req.query.type as string | undefined;
       const page = parseInt(req.query.page as string) || 1;
       const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
 
-      const { documents, total } = await storage.getAllDocuments({ search, type, page, limit });
+      const { documents, total } = await storage.getAllDocuments(orgId, { search, type, page, limit });
       res.json({ documents, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (error) {
       console.error("Error fetching documents:", error);
@@ -168,10 +189,10 @@ export async function registerRoutes(
     }
   });
 
-  // Document repository statistics
-  app.get("/api/documents/stats", async (req, res) => {
+  app.get("/api/documents/stats", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const stats = await storage.getDocumentStats();
+      const user = req.appUser as User;
+      const stats = await storage.getDocumentStats(user.organisationId!);
       res.json(stats);
     } catch (error) {
       console.error("Error fetching document stats:", error);
@@ -179,20 +200,19 @@ export async function registerRoutes(
     }
   });
 
-  // Get single document details
-  app.get("/api/documents/:id", async (req, res) => {
+  app.get("/api/documents/:id", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid document ID" });
       }
 
+      const user = req.appUser as User;
       const document = await storage.getDocument(id);
-      if (!document) {
+      if (!document || document.organisationId !== user.organisationId) {
         return res.status(404).json({ error: "Document not found" });
       }
 
-      // Add staleness warning if documentDate > 12 months old
       const staleWarning =
         document.documentDate &&
         Date.now() - new Date(document.documentDate).getTime() > 365 * 24 * 60 * 60 * 1000;
@@ -204,16 +224,16 @@ export async function registerRoutes(
     }
   });
 
-  // Download document (stream from storage backend)
-  app.get("/api/documents/:id/download", async (req, res) => {
+  app.get("/api/documents/:id/download", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid document ID" });
       }
 
+      const user = req.appUser as User;
       const document = await storage.getDocument(id);
-      if (!document) {
+      if (!document || document.organisationId !== user.organisationId) {
         return res.status(404).json({ error: "Document not found" });
       }
 
@@ -230,16 +250,16 @@ export async function registerRoutes(
     }
   });
 
-  // Update document metadata
-  app.patch("/api/documents/:id", async (req, res) => {
+  app.patch("/api/documents/:id", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid document ID" });
       }
 
+      const user = req.appUser as User;
       const document = await storage.getDocument(id);
-      if (!document) {
+      if (!document || document.organisationId !== user.organisationId) {
         return res.status(404).json({ error: "Document not found" });
       }
 
@@ -258,10 +278,11 @@ export async function registerRoutes(
     }
   });
 
-  // Reset all assessment data (questionnaire responses, test runs, AI logs)
-  app.delete("/api/assessment/reset", async (req, res) => {
+  // Reset all assessment data (questionnaire responses, test history, AI logs)
+  app.delete("/api/assessment/reset", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const result = await storage.resetAssessmentData();
+      const user = req.appUser as User;
+      const result = await storage.resetAssessmentData(user.organisationId!);
       res.json({ success: true, ...result });
     } catch (error) {
       console.error("Error resetting assessment data:", error);
@@ -270,9 +291,10 @@ export async function registerRoutes(
   });
 
   // Delete all documents (bulk clear)
-  app.delete("/api/documents/all", async (req, res) => {
+  app.delete("/api/documents/all", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const { deletedCount, s3Keys } = await storage.deleteAllDocuments();
+      const user = req.appUser as User;
+      const { deletedCount, s3Keys } = await storage.deleteAllDocuments(user.organisationId!);
       let storageCleanedCount = 0;
       for (const key of s3Keys) {
         try {
@@ -289,16 +311,16 @@ export async function registerRoutes(
     }
   });
 
-  // Delete document (auto-unlinks from controls and removes matches)
-  app.delete("/api/documents/:id", async (req, res) => {
+  app.delete("/api/documents/:id", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid document ID" });
       }
 
+      const user = req.appUser as User;
       const document = await storage.getDocument(id);
-      if (!document) {
+      if (!document || document.organisationId !== user.organisationId) {
         return res.status(404).json({ error: "Document not found" });
       }
 
@@ -317,11 +339,11 @@ export async function registerRoutes(
 
   // ─── Document-Control Linking & Analysis ──────────────────────────────────
 
-  // Upload documents directly to a control (upload + link + auto-analyse via SSE)
   app.post(
     "/api/organisation-controls/:controlId/documents/upload",
+    isAuthenticated, requireOrg,
     upload.array("files", 10),
-    async (req, res) => {
+    async (req: any, res) => {
       const controlId = parseInt(req.params.controlId as string);
       if (isNaN(controlId)) {
         return res.status(400).json({ error: "Invalid control ID" });
@@ -336,16 +358,18 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No files provided" });
       }
 
-      // Ensure the organisation control exists
-      let orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      let orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         orgControl = await storage.createOrganisationControl({
           controlId,
+          organisationId: orgId,
           isApplicable: true,
         });
       }
 
-      // Get the control for questionnaire data
       const control = await storage.getControlById(controlId);
       if (!control) {
         return res.status(404).json({ error: "Control not found" });
@@ -356,13 +380,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No questionnaire generated for this control. Generate one first." });
       }
 
-      // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
       res.setHeader("X-Accel-Buffering", "no");
-
-      const user = await storage.getOrCreateDefaultUser();
 
       try {
         for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
@@ -376,9 +397,8 @@ export async function registerRoutes(
             })}\n\n`
           );
 
-          // Compute hash for deduplication
           const fileHash = computeFileHash(file.buffer);
-          let document = await storage.getDocumentByHash(fileHash);
+          let document = await storage.getDocumentByHash(fileHash, orgId);
           let isDuplicate = false;
 
           if (document) {
@@ -392,7 +412,6 @@ export async function registerRoutes(
               })}\n\n`
             );
           } else {
-            // Upload to storage backend
             const storageKey = generateStorageKey(file.originalname);
             const uploadResult = await uploadFile(file.buffer, storageKey, file.mimetype);
 
@@ -410,6 +429,7 @@ export async function registerRoutes(
                 documentDate: null,
                 uploadedByUserId: user.id,
                 extractionStatus: "pending",
+                organisationId: orgId,
               });
             } catch (dbError) {
               await deleteFile(storageKey).catch(() => {});
@@ -417,7 +437,6 @@ export async function registerRoutes(
             }
           }
 
-          // Link document to control
           const existingLink = await storage.getDocumentControlLink(document.id, orgControl.id);
           if (!existingLink) {
             await storage.createDocumentControlLink({
@@ -425,10 +444,10 @@ export async function registerRoutes(
               organisationControlId: orgControl.id,
               linkedByUserId: user.id,
               analysisStatus: "pending",
+              organisationId: orgId,
             });
           }
 
-          // Extract text if not already done
           if (document.extractionStatus === "pending" || document.extractionStatus === "error") {
             res.write(
               `event: progress\ndata: ${JSON.stringify({
@@ -441,11 +460,10 @@ export async function registerRoutes(
 
             try {
               await storage.updateDocument(document.id, { extractionStatus: "extracting" });
-              const buffer = isDuplicate ? file.buffer : file.buffer; // Buffer still in memory
+              const buffer = file.buffer;
               const { text, pageCount } = await extractText(buffer, file.mimetype);
               const sanitisedText = sanitiseTextForAI(text, file.originalname);
 
-              // Chunk the text
               const textChunks = chunkText(sanitisedText);
               await storage.createDocumentChunks(
                 document.id,
@@ -484,7 +502,6 @@ export async function registerRoutes(
             }
           }
 
-          // Get document chunks for analysis
           const dbChunks = await storage.getDocumentChunks(document.id);
           if (dbChunks.length === 0) {
             res.write(
@@ -498,17 +515,14 @@ export async function registerRoutes(
             continue;
           }
 
-          // Run AI analysis
           const link = await storage.getDocumentControlLink(document.id, orgControl.id);
           if (link) {
             await storage.updateDocumentControlLink(link.id, { analysisStatus: "analysing" });
           }
 
-          // Soft-delete previous matches for this document+control combination
           await storage.softDeleteMatchesByDocumentAndControl(document.id, orgControl.id);
 
-          // Build organisation context for the AI prompt
-          const orgProfile = await storage.getOrganisationProfile();
+          const orgProfile = await storage.getOrganisationProfile(orgId);
           const organisationContext = buildOrganisationContextSection(
             orgProfile
               ? {
@@ -545,11 +559,11 @@ export async function registerRoutes(
             }
           );
 
-          // Save matches to DB
           for (const match of matches) {
             await storage.createDocumentQuestionMatch({
               documentId: document.id,
               organisationControlId: orgControl.id,
+              organisationId: orgId,
               questionId: match.questionId,
               contentRelevance: match.contentRelevance,
               evidenceTypeMatch: match.evidenceTypeMatch,
@@ -564,7 +578,6 @@ export async function registerRoutes(
             });
           }
 
-          // Update link status
           if (link) {
             await storage.updateDocumentControlLink(link.id, {
               analysisStatus: "analysed",
@@ -572,9 +585,9 @@ export async function registerRoutes(
             });
           }
 
-          // Log AI interaction
           await storage.createAiInteraction({
             userId: user.id,
+            organisationId: orgId,
             interactionType: "document_analysis",
             controlId: control.id,
             inputSummary: `Analysed "${document.title}" for ${control.controlNumber}`,
@@ -583,7 +596,6 @@ export async function registerRoutes(
             tokensUsed: totalTokensUsed,
           });
 
-          // Send per-document complete event
           res.write(
             `event: document-complete\ndata: ${JSON.stringify({
               documentId: document.id,
@@ -593,7 +605,6 @@ export async function registerRoutes(
           );
         }
 
-        // Send overall complete event
         res.write(`event: complete\ndata: ${JSON.stringify({ success: true })}\n\n`);
         res.end();
       } catch (error) {
@@ -610,8 +621,7 @@ export async function registerRoutes(
     }
   );
 
-  // Link existing document(s) to a control and trigger analysis
-  app.post("/api/organisation-controls/:controlId/documents/link", async (req, res) => {
+  app.post("/api/organisation-controls/:controlId/documents/link", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
@@ -623,15 +633,18 @@ export async function registerRoutes(
         return res.status(400).json({ error: "documentIds array is required" });
       }
 
-      let orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      let orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         orgControl = await storage.createOrganisationControl({
           controlId,
+          organisationId: orgId,
           isApplicable: true,
         });
       }
 
-      const user = await storage.getOrCreateDefaultUser();
       const linked: any[] = [];
 
       for (const docId of documentIds) {
@@ -649,6 +662,7 @@ export async function registerRoutes(
           organisationControlId: orgControl.id,
           linkedByUserId: user.id,
           analysisStatus: "pending",
+          organisationId: orgId,
         });
         linked.push({ documentId: document.id, alreadyLinked: false });
       }
@@ -660,22 +674,23 @@ export async function registerRoutes(
     }
   });
 
-  // Get all documents for a control
-  app.get("/api/organisation-controls/:controlId/documents", async (req, res) => {
+  app.get("/api/organisation-controls/:controlId/documents", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
         return res.status(400).json({ error: "Invalid control ID" });
       }
 
-      const orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      const orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         return res.json([]);
       }
 
       const docs = await storage.getDocumentsByOrgControl(orgControl.id);
 
-      // Enrich each document with its control link metadata
       const enriched = await Promise.all(
         docs.map(async (doc) => {
           const link = await storage.getDocumentControlLink(doc.id, orgControl.id);
@@ -690,8 +705,7 @@ export async function registerRoutes(
     }
   });
 
-  // Unlink document from control (soft-delete matches)
-  app.delete("/api/organisation-controls/:controlId/documents/:documentId", async (req, res) => {
+  app.delete("/api/organisation-controls/:controlId/documents/:documentId", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       const documentId = parseInt(req.params.documentId);
@@ -699,15 +713,15 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid control or document ID" });
       }
 
-      const orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      const orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         return res.status(404).json({ error: "Organisation control not found" });
       }
 
-      // Soft-delete all matches for this document+control
       await storage.softDeleteMatchesByDocumentAndControl(documentId, orgControl.id);
-
-      // Delete the link
       const deleted = await storage.deleteDocumentControlLink(documentId, orgControl.id);
       if (!deleted) {
         return res.status(404).json({ error: "Document-control link not found" });
@@ -720,17 +734,20 @@ export async function registerRoutes(
     }
   });
 
-  // Re-trigger AI analysis for a document-control pair (SSE)
   app.post(
     "/api/organisation-controls/:controlId/documents/:documentId/analyse",
-    async (req, res) => {
+    isAuthenticated, requireOrg,
+    async (req: any, res) => {
       const controlId = parseInt(req.params.controlId);
       const documentId = parseInt(req.params.documentId);
       if (isNaN(controlId) || isNaN(documentId)) {
         return res.status(400).json({ error: "Invalid control or document ID" });
       }
 
-      const orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      const orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         return res.status(404).json({ error: "Organisation control not found" });
       }
@@ -754,25 +771,19 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No questionnaire generated for this control" });
       }
 
-      // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
       res.setHeader("X-Accel-Buffering", "no");
 
       try {
-        const user = await storage.getOrCreateDefaultUser();
-
-        // Update link status
         const link = await storage.getDocumentControlLink(document.id, orgControl.id);
         if (link) {
           await storage.updateDocumentControlLink(link.id, { analysisStatus: "analysing" });
         }
 
-        // Soft-delete previous matches
         await storage.softDeleteMatchesByDocumentAndControl(document.id, orgControl.id);
 
-        // Get chunks
         const dbChunks = await storage.getDocumentChunks(document.id);
         const chunkInputs: DocumentChunkInput[] = dbChunks.map((c) => ({
           chunkIndex: c.chunkIndex,
@@ -781,8 +792,7 @@ export async function registerRoutes(
           chunkId: c.id,
         }));
 
-        // Build organisation context
-        const orgProfile = await storage.getOrganisationProfile();
+        const orgProfile = await storage.getOrganisationProfile(orgId);
         const organisationContext = buildOrganisationContextSection(
           orgProfile
             ? {
@@ -812,11 +822,11 @@ export async function registerRoutes(
           }
         );
 
-        // Save matches to DB
         for (const match of matches) {
           await storage.createDocumentQuestionMatch({
             documentId: document.id,
             organisationControlId: orgControl.id,
+            organisationId: orgId,
             questionId: match.questionId,
             contentRelevance: match.contentRelevance,
             evidenceTypeMatch: match.evidenceTypeMatch,
@@ -831,7 +841,6 @@ export async function registerRoutes(
           });
         }
 
-        // Update link status
         if (link) {
           await storage.updateDocumentControlLink(link.id, {
             analysisStatus: "analysed",
@@ -839,9 +848,9 @@ export async function registerRoutes(
           });
         }
 
-        // Log AI interaction
         await storage.createAiInteraction({
           userId: user.id,
+          organisationId: orgId,
           interactionType: "document_analysis",
           controlId: control.id,
           inputSummary: `Re-analysed "${document.title}" for ${control.controlNumber}`,
@@ -866,15 +875,17 @@ export async function registerRoutes(
     }
   );
 
-  // Get active AI-generated question matches for a control
-  app.get("/api/organisation-controls/:controlId/question-matches", async (req, res) => {
+  app.get("/api/organisation-controls/:controlId/question-matches", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
         return res.status(400).json({ error: "Invalid control ID" });
       }
 
-      const orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      const orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         return res.json([]);
       }
@@ -887,13 +898,15 @@ export async function registerRoutes(
     }
   });
 
-  // Evidence gap analysis for a control
-  app.get("/api/organisation-controls/:controlId/evidence-gaps", async (req, res) => {
+  app.get("/api/organisation-controls/:controlId/evidence-gaps", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
         return res.status(400).json({ error: "Invalid control ID" });
       }
+
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
 
       const control = await storage.getControlById(controlId);
       if (!control) {
@@ -905,12 +918,11 @@ export async function registerRoutes(
         return res.json({ questions: [], totalQuestions: 0, coveredQuestions: 0, gapQuestions: 0 });
       }
 
-      const orgControl = await storage.getOrganisationControl(controlId);
+      const orgControl = await storage.getOrganisationControl(controlId, orgId);
       const matches = orgControl
         ? await storage.getActiveMatchesByOrgControl(orgControl.id)
         : [];
 
-      // Build per-question gap analysis
       const matchesByQuestion = new Map<number, typeof matches>();
       for (const match of matches) {
         const existing = matchesByQuestion.get(match.questionId) || [];
@@ -963,26 +975,24 @@ export async function registerRoutes(
 
   // ─── Suggestion Review ────────────────────────────────────────────────────
 
-  // Accept a suggestion → write to response + log to changeLog
-  app.post("/api/question-matches/:matchId/accept", async (req, res) => {
+  app.post("/api/question-matches/:matchId/accept", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const matchId = parseInt(req.params.matchId);
       if (isNaN(matchId)) {
         return res.status(400).json({ error: "Invalid match ID" });
       }
 
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
       const match = await storage.getMatchById(matchId);
-      if (!match) {
+      if (!match || match.organisationId !== orgId) {
         return res.status(404).json({ error: "Match not found" });
       }
 
-      const user = await storage.getOrCreateDefaultUser();
-
-      // Accept the suggestion
       const accepted = await storage.acceptSuggestion(matchId, user.id);
 
-      // Write the suggested response to the questionnaire implementation responses
-      const orgControl = await storage.getOrganisationControl(match.organisationControlId);
+      const orgControl = await storage.getOrganisationControl(match.organisationControlId, orgId);
       if (orgControl) {
         const existingResponses: ImplementationResponses = orgControl.implementationResponses || {
           responses: [],
@@ -1020,14 +1030,14 @@ export async function registerRoutes(
           (r) => r.response_text.trim().length > 0
         ).length;
 
-        await storage.updateOrganisationControl(match.organisationControlId, {
+        await storage.updateOrganisationControl(match.organisationControlId, orgId, {
           implementationResponses: existingResponses,
           implementationUpdatedAt: new Date(),
         });
 
-        // Log the change
         await storage.createResponseChangeLog({
           organisationControlId: match.organisationControlId,
+          organisationId: orgId,
           questionId: match.questionId,
           previousResponse,
           newResponse: match.suggestedResponse || "",
@@ -1045,15 +1055,21 @@ export async function registerRoutes(
     }
   });
 
-  // Dismiss a suggestion
-  app.post("/api/question-matches/:matchId/dismiss", async (req, res) => {
+  app.post("/api/question-matches/:matchId/dismiss", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const matchId = parseInt(req.params.matchId);
       if (isNaN(matchId)) {
         return res.status(400).json({ error: "Invalid match ID" });
       }
 
-      const user = await storage.getOrCreateDefaultUser();
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      const match = await storage.getMatchById(matchId);
+      if (!match || match.organisationId !== orgId) {
+        return res.status(404).json({ error: "Match not found" });
+      }
+
       const dismissed = await storage.dismissSuggestion(matchId, user.id);
       if (!dismissed) {
         return res.status(404).json({ error: "Match not found" });
@@ -1066,8 +1082,7 @@ export async function registerRoutes(
     }
   });
 
-  // Accept with user edits
-  app.post("/api/question-matches/:matchId/accept-edited", async (req, res) => {
+  app.post("/api/question-matches/:matchId/accept-edited", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const matchId = parseInt(req.params.matchId);
       if (isNaN(matchId)) {
@@ -1079,18 +1094,17 @@ export async function registerRoutes(
         return res.status(400).json({ error: "editedResponse is required" });
       }
 
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
       const match = await storage.getMatchById(matchId);
-      if (!match) {
+      if (!match || match.organisationId !== orgId) {
         return res.status(404).json({ error: "Match not found" });
       }
 
-      const user = await storage.getOrCreateDefaultUser();
-
-      // Accept the suggestion
       await storage.acceptSuggestion(matchId, user.id);
 
-      // Write the EDITED response to the questionnaire
-      const orgControl = await storage.getOrganisationControl(match.organisationControlId);
+      const orgControl = await storage.getOrganisationControl(match.organisationControlId, orgId);
       if (orgControl) {
         const existingResponses: ImplementationResponses = orgControl.implementationResponses || {
           responses: [],
@@ -1128,14 +1142,14 @@ export async function registerRoutes(
           (r) => r.response_text.trim().length > 0
         ).length;
 
-        await storage.updateOrganisationControl(match.organisationControlId, {
+        await storage.updateOrganisationControl(match.organisationControlId, orgId, {
           implementationResponses: existingResponses,
           implementationUpdatedAt: new Date(),
         });
 
-        // Log the change as edited acceptance
         await storage.createResponseChangeLog({
           organisationControlId: match.organisationControlId,
+          organisationId: orgId,
           questionId: match.questionId,
           previousResponse,
           newResponse: editedResponse,
@@ -1155,10 +1169,10 @@ export async function registerRoutes(
 
   // ─── Response History ─────────────────────────────────────────────────────
 
-  // Audit trail for a question's response changes
   app.get(
     "/api/organisation-controls/:controlId/questions/:questionId/history",
-    async (req, res) => {
+    isAuthenticated, requireOrg,
+    async (req: any, res) => {
       try {
         const controlId = parseInt(req.params.controlId);
         const questionId = parseInt(req.params.questionId);
@@ -1166,7 +1180,10 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Invalid control or question ID" });
         }
 
-        const orgControl = await storage.getOrganisationControl(controlId);
+        const user = req.appUser as User;
+        const orgId = user.organisationId!;
+
+        const orgControl = await storage.getOrganisationControl(controlId, orgId);
         if (!orgControl) {
           return res.json([]);
         }
@@ -1180,10 +1197,11 @@ export async function registerRoutes(
     }
   );
 
-  // Dashboard - complete dashboard data
-  app.get("/api/dashboard", async (req, res) => {
+  // Dashboard
+  app.get("/api/dashboard", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const stats = await storage.getDashboardStats();
+      const user = req.appUser as User;
+      const stats = await storage.getDashboardStats(user.organisationId!);
       res.json(stats);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -1191,10 +1209,10 @@ export async function registerRoutes(
     }
   });
 
-  // Dashboard stats (legacy endpoint)
-  app.get("/api/dashboard/stats", async (req, res) => {
+  app.get("/api/dashboard/stats", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const stats = await storage.getDashboardStats();
+      const user = req.appUser as User;
+      const stats = await storage.getDashboardStats(user.organisationId!);
       res.json(stats);
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
@@ -1203,7 +1221,7 @@ export async function registerRoutes(
   });
 
   // Categories
-  app.get("/api/categories", async (req, res) => {
+  app.get("/api/categories", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const categories = await storage.getCategories();
       res.json(categories);
@@ -1214,9 +1232,10 @@ export async function registerRoutes(
   });
 
   // Controls
-  app.get("/api/controls", async (req, res) => {
+  app.get("/api/controls", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const controls = await storage.getControlsWithLatestTest();
+      const user = req.appUser as User;
+      const controls = await storage.getControlsWithLatestTest(user.organisationId!);
       res.json(controls);
     } catch (error) {
       console.error("Error fetching controls:", error);
@@ -1224,10 +1243,10 @@ export async function registerRoutes(
     }
   });
 
-  // Controls stats
-  app.get("/api/controls/stats", async (req, res) => {
+  app.get("/api/controls/stats", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const stats = await storage.getControlsStats();
+      const user = req.appUser as User;
+      const stats = await storage.getControlsStats(user.organisationId!);
       res.json(stats);
     } catch (error) {
       console.error("Error fetching controls stats:", error);
@@ -1235,10 +1254,10 @@ export async function registerRoutes(
     }
   });
 
-  // Control Applicability endpoints (must be before :controlNumber route)
-  app.get("/api/controls/applicability", async (req, res) => {
+  app.get("/api/controls/applicability", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const applicability = await storage.getControlsApplicability();
+      const user = req.appUser as User;
+      const applicability = await storage.getControlsApplicability(user.organisationId!);
       res.json(applicability);
     } catch (error) {
       console.error("Error fetching control applicability:", error);
@@ -1246,15 +1265,16 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/controls/applicability", async (req, res) => {
+  app.patch("/api/controls/applicability", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
+      const user = req.appUser as User;
       const { updates } = req.body;
-      
+
       if (!Array.isArray(updates)) {
         return res.status(400).json({ error: "Updates must be an array" });
       }
 
-      const updatedCount = await storage.updateControlsApplicability(updates);
+      const updatedCount = await storage.updateControlsApplicability(user.organisationId!, updates);
       res.json({ updated: updatedCount });
     } catch (error) {
       console.error("Error updating control applicability:", error);
@@ -1262,9 +1282,10 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/controls/:controlNumber", async (req, res) => {
+  app.get("/api/controls/:controlNumber", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const control = await storage.getControlByNumber(req.params.controlNumber);
+      const user = req.appUser as User;
+      const control = await storage.getControlByNumber(req.params.controlNumber, user.organisationId!);
       if (!control) {
         return res.status(404).json({ error: "Control not found" });
       }
@@ -1275,15 +1296,15 @@ export async function registerRoutes(
     }
   });
 
-  // Generate questionnaire for a control
-  app.post("/api/controls/:controlNumber/generate-questionnaire", async (req, res) => {
+  app.post("/api/controls/:controlNumber/generate-questionnaire", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const control = await storage.getControlByNumber(req.params.controlNumber);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      const control = await storage.getControlByNumber(req.params.controlNumber, orgId);
       if (!control) {
         return res.status(404).json({ error: "Control not found" });
       }
-
-      const user = await storage.getOrCreateDefaultUser();
 
       const { questionnaire, tokensUsed } = await generateQuestionnaire(
         control.controlNumber,
@@ -1291,12 +1312,11 @@ export async function registerRoutes(
         control.description || ""
       );
 
-      // Update control with questionnaire
       await storage.updateControlQuestionnaire(control.id, questionnaire, new Date());
 
-      // Log AI interaction
       await storage.createAiInteraction({
         userId: user.id,
+        organisationId: orgId,
         interactionType: "questionnaire_generation",
         controlId: control.id,
         inputSummary: `Generated questionnaire for ${control.controlNumber}: ${control.name}`,
@@ -1309,9 +1329,9 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error generating questionnaire:", error);
       if (error instanceof AIConfigurationError) {
-        return res.status(502).json({ 
-          error: "AI service configuration error", 
-          message: error.message 
+        return res.status(502).json({
+          error: "AI service configuration error",
+          message: error.message
         });
       }
       res.status(500).json({ error: "Failed to generate questionnaire" });
@@ -1319,42 +1339,40 @@ export async function registerRoutes(
   });
 
   // Organisation Controls
-  app.patch("/api/organisation-controls/:controlId", async (req, res) => {
+  app.patch("/api/organisation-controls/:controlId", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
         return res.status(400).json({ error: "Invalid control ID" });
       }
 
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
       const { isApplicable, frequency, exclusionJustification, startQuarter } = req.body;
 
-      // Calculate next due date based on frequency and start quarter
       const calculateNextDueDate = (freq: string, quarter: string): string | null => {
         if (!freq) return null;
-        
+
         const now = new Date();
         const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth(); // 0-indexed
-        
-        // Quarter start months (0-indexed): Q1=Jan(0), Q2=Apr(3), Q3=Jul(6), Q4=Oct(9)
+        const currentMonth = now.getMonth();
+
         const quarterMonths: Record<string, number> = { Q1: 0, Q2: 3, Q3: 6, Q4: 9 };
         const startMonth = quarterMonths[quarter] ?? 0;
-        
+
         let nextDueDate: Date = new Date();
-        
+
         switch (freq) {
           case "Annual":
-            // Next occurrence of start quarter
             nextDueDate = new Date(currentYear, startMonth, 1);
             if (nextDueDate <= now) {
               nextDueDate = new Date(currentYear + 1, startMonth, 1);
             }
             break;
           case "Quarterly":
-            // Find next occurrence of start quarter month or any subsequent quarter
-            const quarterMonthsList = [0, 3, 6, 9]; // Q1, Q2, Q3, Q4 months
+            const quarterMonthsList = [0, 3, 6, 9];
             const startQuarterIndex = quarterMonthsList.indexOf(startMonth);
-            // Find the next quarter from the start quarter pattern
             let foundNextQuarter = false;
             for (let i = 0; i < 4; i++) {
               const checkMonth = quarterMonthsList[(startQuarterIndex + i) % 4];
@@ -1367,18 +1385,16 @@ export async function registerRoutes(
               }
             }
             if (!foundNextQuarter) {
-              // All quarters this year have passed, use start quarter next year
               nextDueDate = new Date(currentYear + 1, startMonth, 1);
             }
             break;
           case "Monthly":
-            // First day of next month
             nextDueDate = new Date(currentYear, currentMonth + 1, 1);
             break;
           default:
             return null;
         }
-        
+
         return nextDueDate.toISOString().split('T')[0];
       };
 
@@ -1386,11 +1402,11 @@ export async function registerRoutes(
       const effectiveStartQuarter = startQuarter || "Q1";
       const nextDueDate = effectiveFrequency ? calculateNextDueDate(effectiveFrequency, effectiveStartQuarter) : null;
 
-      // Check if organisation control exists, if not create it
-      let orgControl = await storage.getOrganisationControl(controlId);
+      let orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         orgControl = await storage.createOrganisationControl({
           controlId,
+          organisationId: orgId,
           isApplicable: isApplicable ?? true,
           frequency: effectiveFrequency,
           startQuarter: startQuarter || null,
@@ -1398,7 +1414,7 @@ export async function registerRoutes(
           nextDueDate,
         });
       } else {
-        orgControl = await storage.updateOrganisationControl(controlId, {
+        orgControl = await storage.updateOrganisationControl(controlId, orgId, {
           isApplicable: isApplicable ?? orgControl.isApplicable,
           frequency: effectiveFrequency || orgControl.frequency,
           exclusionJustification: exclusionJustification ?? orgControl.exclusionJustification,
@@ -1415,9 +1431,10 @@ export async function registerRoutes(
   });
 
   // Test Runs
-  app.get("/api/test-runs", async (req, res) => {
+  app.get("/api/test-runs", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const testRuns = await storage.getTestRuns();
+      const user = req.appUser as User;
+      const testRuns = await storage.getTestRuns(user.organisationId!);
       res.json(testRuns);
     } catch (error) {
       console.error("Error fetching test runs:", error);
@@ -1425,9 +1442,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/test-runs", async (req, res) => {
+  app.post("/api/test-runs", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const user = await storage.getOrCreateDefaultUser();
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
 
       const { organisationControlId, status, comments, aiAnalysis, aiSuggestedStatus, aiConfidence, aiContextScope, evidenceLinks: evidenceLinksData } = req.body;
 
@@ -1439,8 +1457,19 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Status is required" });
       }
 
+      const orgControlCheck = await db.select().from(organisationControlsTable).where(
+        drizzleAnd(
+          drizzleEq(organisationControlsTable.id, organisationControlId),
+          drizzleEq(organisationControlsTable.organisationId, orgId)
+        )
+      );
+      if (orgControlCheck.length === 0) {
+        return res.status(404).json({ error: "Organisation control not found" });
+      }
+
       const testRun = await storage.createTestRun({
         organisationControlId,
+        organisationId: orgId,
         testerUserId: user.id,
         status,
         comments: comments || null,
@@ -1450,12 +1479,12 @@ export async function registerRoutes(
         aiContextScope: aiContextScope || null,
       });
 
-      // Persist any evidence links attached to this test run
       if (Array.isArray(evidenceLinksData) && evidenceLinksData.length > 0) {
         for (const ev of evidenceLinksData) {
           await storage.createEvidenceLink({
             testRunId: testRun.id,
             organisationControlId,
+            organisationId: orgId,
             title: ev.title,
             url: ev.url || null,
             evidenceType: ev.evidenceType || null,
@@ -1473,9 +1502,10 @@ export async function registerRoutes(
   });
 
   // AI Interactions
-  app.get("/api/ai-interactions", async (req, res) => {
+  app.get("/api/ai-interactions", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const interactions = await storage.getAiInteractions();
+      const user = req.appUser as User;
+      const interactions = await storage.getAiInteractions(user.organisationId!);
       res.json(interactions);
     } catch (error) {
       console.error("Error fetching AI interactions:", error);
@@ -1483,8 +1513,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update selected persona for an organisation control
-  app.patch("/api/organisation-controls/:controlId/persona", async (req, res) => {
+  // Persona
+  app.patch("/api/organisation-controls/:controlId/persona", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
@@ -1497,26 +1527,28 @@ export async function registerRoutes(
       }
 
       const persona = parseResult.data;
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
 
-      let orgControl = await storage.getOrganisationControl(controlId);
+      let orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         orgControl = await storage.createOrganisationControl({
           controlId,
+          organisationId: orgId,
           isApplicable: true,
           selectedPersona: persona,
         });
       } else {
-        orgControl = await storage.updateOrganisationControl(controlId, {
+        orgControl = await storage.updateOrganisationControl(controlId, orgId, {
           selectedPersona: persona,
         });
       }
 
-      // Log AI interaction for persona view
-      const user = await storage.getOrCreateDefaultUser();
       const control = await storage.getControlById(controlId);
       if (control) {
         await storage.createAiInteraction({
           userId: user.id,
+          organisationId: orgId,
           interactionType: "questionnaire_generation",
           controlId: control.id,
           inputSummary: `Viewed questionnaire for ${control.controlNumber}`,
@@ -1533,8 +1565,8 @@ export async function registerRoutes(
     }
   });
 
-  // Save a single question response (merges into existing implementation_responses)
-  app.patch("/api/organisation-controls/:controlId/response", async (req, res) => {
+  // Save response
+  app.patch("/api/organisation-controls/:controlId/response", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
@@ -1547,17 +1579,18 @@ export async function registerRoutes(
       }
 
       const { question_id, response_text, evidence_references } = parseResult.data;
-      const user = await storage.getOrCreateDefaultUser();
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
 
-      let orgControl = await storage.getOrganisationControl(controlId);
+      let orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         orgControl = await storage.createOrganisationControl({
           controlId,
+          organisationId: orgId,
           isApplicable: true,
         });
       }
 
-      // Get existing responses or create new structure
       const existingResponses: ImplementationResponses = orgControl.implementationResponses || {
         responses: [],
         completion_status: {
@@ -1571,7 +1604,6 @@ export async function registerRoutes(
         },
       };
 
-      // Find or create response for this question
       const existingIndex = existingResponses.responses.findIndex(
         (r) => r.question_id === question_id
       );
@@ -1590,13 +1622,11 @@ export async function registerRoutes(
         existingResponses.responses.push(newResponse);
       }
 
-      // Update answered count
       existingResponses.completion_status.answered = existingResponses.responses.filter(
         (r) => r.response_text.trim().length > 0
       ).length;
 
-      // Update the organisation control
-      const updated = await storage.updateOrganisationControl(controlId, {
+      await storage.updateOrganisationControl(controlId, orgId, {
         implementationResponses: existingResponses,
         implementationUpdatedAt: new Date(),
       });
@@ -1609,11 +1639,11 @@ export async function registerRoutes(
   });
 
   // Add evidence to a question response
-  app.patch("/api/organisation-controls/:controlId/response/:questionId/evidence", async (req, res) => {
+  app.patch("/api/organisation-controls/:controlId/response/:questionId/evidence", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       const questionId = parseInt(req.params.questionId);
-      
+
       if (isNaN(controlId) || isNaN(questionId)) {
         return res.status(400).json({ error: "Invalid control or question ID" });
       }
@@ -1623,9 +1653,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Filename is required" });
       }
 
-      const user = await storage.getOrCreateDefaultUser();
-      let orgControl = await storage.getOrganisationControl(controlId);
-      
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+      const orgControl = await storage.getOrganisationControl(controlId, orgId);
+
       if (!orgControl) {
         return res.status(404).json({ error: "Organisation control not found" });
       }
@@ -1663,7 +1694,7 @@ export async function registerRoutes(
         });
       }
 
-      const updated = await storage.updateOrganisationControl(controlId, {
+      await storage.updateOrganisationControl(controlId, orgId, {
         implementationResponses: existingResponses,
         implementationUpdatedAt: new Date(),
       });
@@ -1676,14 +1707,17 @@ export async function registerRoutes(
   });
 
   // Evidence Links
-  app.get("/api/organisation-controls/:controlId/evidence-links", async (req, res) => {
+  app.get("/api/organisation-controls/:controlId/evidence-links", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
         return res.status(400).json({ error: "Invalid control ID" });
       }
 
-      const orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      const orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         return res.status(404).json({ error: "Organisation control not found" });
       }
@@ -1697,17 +1731,21 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/organisation-controls/:controlId/evidence-links", async (req, res) => {
+  app.post("/api/organisation-controls/:controlId/evidence-links", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const controlId = parseInt(req.params.controlId);
       if (isNaN(controlId)) {
         return res.status(400).json({ error: "Invalid control ID" });
       }
 
-      let orgControl = await storage.getOrganisationControl(controlId);
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
+      let orgControl = await storage.getOrganisationControl(controlId, orgId);
       if (!orgControl) {
         orgControl = await storage.createOrganisationControl({
           controlId,
+          organisationId: orgId,
           isApplicable: true,
         });
       }
@@ -1717,9 +1755,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Title is required" });
       }
 
-      const user = await storage.getOrCreateDefaultUser();
       const link = await storage.createEvidenceLink({
         organisationControlId: orgControl.id,
+        organisationId: orgId,
         questionId: questionId ?? null,
         testRunId: null,
         title,
@@ -1736,11 +1774,17 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/evidence-links/:id", async (req, res) => {
+  app.delete("/api/evidence-links/:id", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid evidence link ID" });
+      }
+
+      const user = req.appUser as User;
+      const [link] = await db.select().from(evidenceLinksTable).where(drizzleEq(evidenceLinksTable.id, id));
+      if (!link || link.organisationId !== user.organisationId) {
+        return res.status(404).json({ error: "Evidence link not found" });
       }
 
       const deleted = await storage.deleteEvidenceLink(id);
@@ -1755,36 +1799,34 @@ export async function registerRoutes(
     }
   });
 
-  // Persona-aware AI analysis with streaming (SSE)
+  // AI analysis with streaming
   const analyzeRequestSchema = z.object({
     persona: personaSchema,
     include_history: z.boolean().default(true),
     comments: z.string().default(""),
   });
 
-  app.post("/api/controls/:controlNumber/analyze", async (req, res) => {
+  app.post("/api/controls/:controlNumber/analyze", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      // Validate request body
       const parseResult = analyzeRequestSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({ error: "Invalid request body", details: parseResult.error.errors });
       }
 
       const { persona, include_history, comments } = parseResult.data;
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
 
-      // Get control data
-      const control = await storage.getControlByNumber(req.params.controlNumber);
+      const control = await storage.getControlByNumber(req.params.controlNumber, orgId);
       if (!control) {
         return res.status(404).json({ error: "Control not found" });
       }
 
-      // Check for questionnaire
       const questionnaire = control.aiQuestionnaire;
       if (!questionnaire || !questionnaire.questions || questionnaire.questions.length === 0) {
         return res.status(400).json({ error: "No questionnaire available for this control" });
       }
 
-      // Get implementation responses
       const orgControl = control.organisationControl;
       if (!orgControl) {
         return res.status(400).json({ error: "Organisation control not configured" });
@@ -1797,13 +1839,11 @@ export async function registerRoutes(
         evidence_references: r.evidence_references,
       }));
 
-      // Check if there are any responses
       const hasResponses = responses.some(r => r.response_text?.trim());
       if (!hasResponses && !comments.trim()) {
         return res.status(400).json({ error: "No responses or comments provided for analysis" });
       }
 
-      // Get test history if requested
       let previousTests: TestRunHistory[] = [];
       if (include_history && control.recentTestRuns) {
         previousTests = control.recentTestRuns.slice(0, 3).map(t => ({
@@ -1813,8 +1853,7 @@ export async function registerRoutes(
         }));
       }
 
-      // Get organisation profile for AI context
-      const orgProfile = await storage.getOrganisationProfile();
+      const orgProfile = await storage.getOrganisationProfile(orgId);
       const organisationContext = orgProfile ? {
         companyName: orgProfile.companyName,
         industry: orgProfile.industry,
@@ -1826,7 +1865,6 @@ export async function registerRoutes(
         additionalContext: orgProfile.additionalContext,
       } : null;
 
-      // Convert ontology questions to the AI format
       const aiQuestions: AIQuestion[] = questionnaire.questions.map(q => ({
         question_id: q.question_id,
         question: q.question,
@@ -1839,13 +1877,11 @@ export async function registerRoutes(
         related_controls: q.related_controls || "",
       }));
 
-      // Set up Server-Sent Events
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
       res.setHeader("X-Accel-Buffering", "no");
 
-      // Stream the analysis
       const { analysis, tokensUsed, fullText } = await streamAnalysis(
         persona,
         control.controlNumber,
@@ -1860,10 +1896,9 @@ export async function registerRoutes(
         }
       );
 
-      // Log AI interaction
-      const user = await storage.getOrCreateDefaultUser();
       await storage.createAiInteraction({
         userId: user.id,
+        organisationId: orgId,
         interactionType: "test_analysis",
         controlId: control.id,
         inputSummary: `${persona} analysis for ${control.controlNumber}`,
@@ -1872,18 +1907,16 @@ export async function registerRoutes(
         tokensUsed,
       });
 
-      // Send complete event with parsed analysis
       res.write(`event: complete\ndata: ${JSON.stringify(analysis)}\n\n`);
       res.end();
     } catch (error) {
       console.error("Error analyzing control:", error);
-      
+
       if (error instanceof AIConfigurationError) {
         res.status(502).json({ error: error.message });
         return;
       }
-      
-      // If we've already started streaming, we need to send error as an event
+
       if (res.headersSent) {
         res.write(`event: error\ndata: ${JSON.stringify({ error: "Analysis failed" })}\n\n`);
         res.end();
@@ -1894,12 +1927,13 @@ export async function registerRoutes(
   });
 
   // Settings
-  app.get("/api/settings", async (req, res) => {
+  app.get("/api/settings", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
+      const user = req.appUser as User;
       const aiConfig = checkAIConfiguration();
       const categories = await storage.getCategories();
-      const stats = await storage.getDashboardStats();
-      
+      const stats = await storage.getDashboardStats(user.organisationId!);
+
       res.json({
         ai: {
           configured: aiConfig.configured,
@@ -1924,67 +1958,62 @@ export async function registerRoutes(
     }
   });
 
-  // Test API connection
-  app.post("/api/settings/test-api", async (req, res) => {
+  app.post("/api/settings/test-api", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
       const aiConfig = checkAIConfiguration();
       if (!aiConfig.configured) {
-        res.json({ 
-          success: false, 
+        res.json({
+          success: false,
           message: aiConfig.message,
         });
         return;
       }
 
-      // Try a simple API call to verify the key works
       const anthropic = new Anthropic();
       await anthropic.messages.create({
         model: DEFAULT_MODEL,
         max_tokens: 10,
         messages: [{ role: "user", content: "Hello" }],
       });
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         message: "API connection successful",
         model: DEFAULT_MODEL,
       });
     } catch (error: any) {
       console.error("API test failed:", error);
-      res.json({ 
-        success: false, 
+      res.json({
+        success: false,
         message: error.message || "API connection failed",
       });
     }
   });
 
-  // Export test history as CSV
-  app.get("/api/export/test-history", async (req, res) => {
+  app.get("/api/export/test-history", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const testRuns = await storage.getTestRuns();
-      
-      // CSV header
+      const user = req.appUser as User;
+      const testRuns = await storage.getTestRuns(user.organisationId!);
+
       const csvHeader = "Test Date,Control Number,Control Name,Status,Tester,Comments,AI Suggested Status,AI Confidence\n";
-      
-      // Helper to escape CSV values (wrap in quotes and escape internal quotes)
+
       const escapeCSV = (value: string): string => {
         if (value.includes('"') || value.includes(',') || value.includes('\n')) {
           return `"${value.replace(/"/g, '""')}"`;
         }
         return value;
       };
-      
-      // CSV rows
+
       const csvRows = testRuns.map(run => {
         const testDate = new Date(run.testDate).toISOString();
         const controlNumber = run.organisationControl?.control?.controlNumber || "";
         const controlName = run.organisationControl?.control?.name || "";
         const status = run.status;
-        const tester = run.tester?.name || "";
+        const tester = getUserDisplayName(run.tester);
         const comments = run.comments || "";
         const aiSuggestedStatus = run.aiSuggestedStatus || "";
         const aiConfidence = run.aiConfidence ? `${(run.aiConfidence * 100).toFixed(0)}%` : "";
-        
+
         return [
           testDate,
           controlNumber,
@@ -1996,9 +2025,9 @@ export async function registerRoutes(
           aiConfidence
         ].join(',');
       }).join("\n");
-      
+
       const csv = csvHeader + csvRows;
-      
+
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", "attachment; filename=test-history.csv");
       res.send(csv);
@@ -2008,10 +2037,11 @@ export async function registerRoutes(
     }
   });
 
-  // Organisation Profile endpoints
-  app.get("/api/settings/profile", async (req, res) => {
+  // Organisation Profile
+  app.get("/api/settings/profile", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
-      const profile = await storage.getOrganisationProfile();
+      const user = req.appUser as User;
+      const profile = await storage.getOrganisationProfile(user.organisationId!);
       res.json(profile || null);
     } catch (error) {
       console.error("Error fetching organisation profile:", error);
@@ -2019,8 +2049,11 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/settings/profile", async (req, res) => {
+  app.put("/api/settings/profile", isAuthenticated, requireOrg, async (req: any, res) => {
     try {
+      const user = req.appUser as User;
+      const orgId = user.organisationId!;
+
       const {
         companyName,
         industry,
@@ -2034,7 +2067,7 @@ export async function registerRoutes(
         hideNonApplicableControls,
       } = req.body;
 
-      const profile = await storage.upsertOrganisationProfile({
+      const profile = await storage.upsertOrganisationProfile(orgId, {
         companyName: companyName || null,
         industry: industry || null,
         companySize: companySize || null,
