@@ -25,6 +25,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   Settings as SettingsIcon, 
   CheckCircle, 
@@ -38,7 +49,8 @@ import {
   Building2,
   Shield,
   Save,
-  Loader2
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { OrganisationProfile, ControlApplicability, ControlCategory } from "@shared/schema";
@@ -242,6 +254,30 @@ export default function Settings() {
       toast({
         title: "Save Failed",
         description: error.message || "Failed to save changes",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const clearAllDocumentsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/documents/all");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organisation-controls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      toast({
+        title: "Documents Cleared",
+        description: `${data.deletedCount} document${data.deletedCount !== 1 ? "s" : ""} permanently removed`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Clear Failed",
+        description: error.message || "Failed to clear documents",
         variant: "destructive",
       });
     },
@@ -852,6 +888,56 @@ export default function Settings() {
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
               </Button>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-md border border-destructive/30">
+              <div>
+                <p className="font-medium">Clear All Documents</p>
+                <p className="text-sm text-muted-foreground">
+                  Remove all uploaded documents, analysis results, and control links for a clean slate
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    disabled={clearAllDocumentsMutation.isPending}
+                    data-testid="button-clear-all-docs"
+                  >
+                    {clearAllDocumentsMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Clearing...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Clear All
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear all documents?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete every uploaded document, all AI analysis results,
+                      and all document-to-control links. Questionnaire responses that referenced
+                      documents will keep their text but lose the document reference.
+                      This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => clearAllDocumentsMutation.mutate()}
+                      data-testid="button-confirm-clear-all"
+                    >
+                      Clear All Documents
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardContent>
         </Card>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -28,6 +28,17 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Upload,
   Search,
   FileText,
@@ -40,8 +51,11 @@ import {
   Loader2,
   XCircle,
   FolderOpen,
+  Trash2,
 } from "lucide-react";
 import { DocumentUploadDialog } from "@/components/DocumentUploadDialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Document } from "@shared/schema";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -196,6 +210,7 @@ export default function Documents() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const { toast } = useToast();
 
   const queryParams = new URLSearchParams();
   if (search) queryParams.set("search", search);
@@ -209,6 +224,21 @@ export default function Documents() {
 
   const { data: stats } = useQuery<DocumentStats>({
     queryKey: ["/api/documents/stats"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/documents/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organisation-controls"] });
+      toast({ title: "Document deleted", description: "The document has been permanently removed." });
+    },
+    onError: () => {
+      toast({ title: "Delete failed", description: "Could not delete the document.", variant: "destructive" });
+    },
   });
 
   if (isLoading) return <DocumentsSkeleton />;
@@ -339,7 +369,7 @@ export default function Documents() {
                   <TableHead className="w-[120px]">Upload Date</TableHead>
                   <TableHead className="w-[120px]">Document Date</TableHead>
                   <TableHead className="w-[100px]">Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -380,20 +410,59 @@ export default function Documents() {
                     </TableCell>
                     <TableCell>{getStatusBadge(doc.extractionStatus)}</TableCell>
                     <TableCell>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => window.open(`/api/documents/${doc.id}/download`, "_blank")}
-                            data-testid={`button-download-${doc.id}`}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Download</TooltipContent>
-                      </Tooltip>
+                      <div className="flex items-center gap-0.5">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => window.open(`/api/documents/${doc.id}/download`, "_blank")}
+                              data-testid={`button-download-${doc.id}`}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Download</TooltipContent>
+                        </Tooltip>
+                        <AlertDialog>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  disabled={deleteMutation.isPending}
+                                  data-testid={`button-delete-${doc.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete</TooltipContent>
+                          </Tooltip>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete document?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete "{doc.title}" and remove it from any linked controls.
+                                All analysis results for this document will also be removed. This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => deleteMutation.mutate(doc.id)}
+                                data-testid={`button-confirm-delete-${doc.id}`}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

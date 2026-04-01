@@ -80,6 +80,8 @@ export interface IStorage {
   getDocument(id: number): Promise<Document | undefined>;
   updateDocument(id: number, data: Partial<Document>): Promise<Document | undefined>;
   deleteDocument(id: number): Promise<boolean>;
+  forceDeleteDocument(id: number): Promise<boolean>;
+  deleteAllDocuments(): Promise<{ deletedCount: number; s3Keys: string[] }>;
   getDocumentByHash(fileHash: string): Promise<Document | undefined>;
   getAllDocuments(options?: { search?: string; type?: string; page?: number; limit?: number }): Promise<{ documents: Document[]; total: number }>;
   getDocumentStats(): Promise<DocumentStats>;
@@ -724,10 +726,40 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteDocument(id: number): Promise<boolean> {
-    // RESTRICT deletes on documentControlLinks and documentQuestionMatches
-    // will cause this to fail if the document is still linked — which is intended
     const result = await db.delete(documents).where(eq(documents.id, id)).returning();
     return result.length > 0;
+  }
+
+  async forceDeleteDocument(id: number): Promise<boolean> {
+    return db.transaction(async (tx) => {
+      await tx.update(responseChangeLog)
+        .set({ sourceDocumentId: null, sourceMatchId: null })
+        .where(eq(responseChangeLog.sourceDocumentId, id));
+      await tx.update(evidenceLinks)
+        .set({ documentId: null })
+        .where(eq(evidenceLinks.documentId, id));
+      await tx.delete(documentQuestionMatches).where(eq(documentQuestionMatches.documentId, id));
+      await tx.delete(documentControlLinks).where(eq(documentControlLinks.documentId, id));
+      const result = await tx.delete(documents).where(eq(documents.id, id)).returning();
+      return result.length > 0;
+    });
+  }
+
+  async deleteAllDocuments(): Promise<{ deletedCount: number; s3Keys: string[] }> {
+    return db.transaction(async (tx) => {
+      const allDocs = await tx.select({ id: documents.id, s3Key: documents.s3Key }).from(documents);
+      await tx.update(responseChangeLog)
+        .set({ sourceDocumentId: null, sourceMatchId: null })
+        .where(sql`${responseChangeLog.sourceDocumentId} IS NOT NULL`);
+      await tx.update(evidenceLinks)
+        .set({ documentId: null })
+        .where(sql`${evidenceLinks.documentId} IS NOT NULL`);
+      await tx.delete(documentQuestionMatches);
+      await tx.delete(documentControlLinks);
+      await tx.delete(documentChunks);
+      await tx.delete(documents);
+      return { deletedCount: allDocs.length, s3Keys: allDocs.map(d => d.s3Key) };
+    });
   }
 
   async getDocumentByHash(fileHash: string): Promise<Document | undefined> {

@@ -1,6 +1,22 @@
 # ISMS Compliance Tracker
 
-## Recent Changes (January 2026)
+## Recent Changes (April 2026)
+
+### Document Management - Delete & Clear All (Completed)
+- Individual document delete: Trash icon button on each document row in Documents page
+- Confirmation dialog before deletion warns about permanent removal and control unlinking
+- Force-delete automatically unlinks from controls, clears analysis matches, and removes storage object
+- "Clear All Documents" button in Settings > Data Management section
+- Destructive confirmation dialog for bulk clear explains consequences
+- Delete button on ControlDocumentsSection (control detail page) for permanent document removal
+- All deletions wrapped in database transactions for data integrity
+- Evidence links and response change log references nullified (not lost) on document deletion
+- Storage objects cleaned up after DB transaction commits
+- API endpoints:
+  - DELETE /api/documents/all — bulk clear with transactional cleanup
+  - DELETE /api/documents/:id — force-delete with automatic unlink
+
+## Previous Changes (January 2026)
 
 ### Prompt 10 - Organization Profile & Control Applicability (Completed)
 - Organization Profile form in Settings with fields:

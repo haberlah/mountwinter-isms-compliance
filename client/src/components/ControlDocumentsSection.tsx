@@ -19,6 +19,17 @@ import { useDocumentAnalysis } from "@/hooks/useDocumentAnalysis";
 import { DocumentUploadDialog } from "@/components/DocumentUploadDialog";
 import { apiRequest } from "@/lib/queryClient";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   ChevronDown,
   ChevronRight,
   Upload,
@@ -34,6 +45,7 @@ import {
   RefreshCw,
   Unlink,
   FolderOpen,
+  Trash2,
 } from "lucide-react";
 import type { Document, DocumentControlLink } from "@shared/schema";
 
@@ -150,7 +162,20 @@ export function ControlDocumentsSection({
     enabled: !!organisationControlId,
   });
 
-  // Unlink document mutation
+  const invalidateDocQueries = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["/api/organisation-controls", String(organisationControlId), "documents"],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["/api/organisation-controls", String(organisationControlId), "question-matches"],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["/api/organisation-controls", String(organisationControlId), "evidence-gaps"],
+    });
+    queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/documents/stats"] });
+  };
+
   const unlinkMutation = useMutation({
     mutationFn: async (documentId: number) => {
       return apiRequest(
@@ -159,21 +184,30 @@ export function ControlDocumentsSection({
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["/api/organisation-controls", String(organisationControlId), "documents"],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["/api/organisation-controls", String(organisationControlId), "question-matches"],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["/api/organisation-controls", String(organisationControlId), "evidence-gaps"],
-      });
+      invalidateDocQueries();
       toast({ title: "Document unlinked", description: "Document has been removed from this control." });
     },
     onError: () => {
       toast({
         title: "Error",
         description: "Failed to unlink document.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteDocMutation = useMutation({
+    mutationFn: async (documentId: number) => {
+      return apiRequest("DELETE", `/api/documents/${documentId}`);
+    },
+    onSuccess: () => {
+      invalidateDocQueries();
+      toast({ title: "Document deleted", description: "Document has been permanently removed." });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete document.",
         variant: "destructive",
       });
     },
@@ -311,6 +345,42 @@ export function ControlDocumentsSection({
                           </TooltipTrigger>
                           <TooltipContent>Unlink from control</TooltipContent>
                         </Tooltip>
+                        <AlertDialog>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                  disabled={deleteDocMutation.isPending}
+                                  data-testid={`button-delete-doc-${doc.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete permanently</TooltipContent>
+                          </Tooltip>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete document?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete "{doc.title}" from the repository and
+                                remove it from all linked controls. This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => deleteDocMutation.mutate(doc.id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   ))}

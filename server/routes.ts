@@ -258,7 +258,27 @@ export async function registerRoutes(
     }
   });
 
-  // Delete document (fails if linked to controls due to RESTRICT)
+  // Delete all documents (bulk clear)
+  app.delete("/api/documents/all", async (req, res) => {
+    try {
+      const { deletedCount, s3Keys } = await storage.deleteAllDocuments();
+      let storageCleanedCount = 0;
+      for (const key of s3Keys) {
+        try {
+          await deleteFile(key);
+          storageCleanedCount++;
+        } catch (e) {
+          console.warn(`[Routes] Failed to delete storage object "${key}":`, e);
+        }
+      }
+      res.json({ success: true, deletedCount, storageCleanedCount });
+    } catch (error) {
+      console.error("Error clearing all documents:", error);
+      res.status(500).json({ error: "Failed to clear documents" });
+    }
+  });
+
+  // Delete document (auto-unlinks from controls and removes matches)
   app.delete("/api/documents/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -271,24 +291,13 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Document not found" });
       }
 
-      try {
-        const deleted = await storage.deleteDocument(id);
-        if (deleted) {
-          // Clean up storage object
-          await deleteFile(document.s3Key).catch((e) =>
-            console.warn(`[Routes] Failed to delete storage object "${document.s3Key}":`, e)
-          );
-        }
-        res.json({ success: true });
-      } catch (deleteError: any) {
-        // RESTRICT constraint — document is linked to controls
-        if (deleteError.code === "23503") {
-          return res.status(409).json({
-            error: "Cannot delete document while it is linked to controls. Unlink it first.",
-          });
-        }
-        throw deleteError;
+      const deleted = await storage.forceDeleteDocument(id);
+      if (deleted) {
+        await deleteFile(document.s3Key).catch((e) =>
+          console.warn(`[Routes] Failed to delete storage object "${document.s3Key}":`, e)
+        );
       }
+      res.json({ success: true });
     } catch (error) {
       console.error("Error deleting document:", error);
       res.status(500).json({ error: "Failed to delete document" });
