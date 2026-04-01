@@ -32,7 +32,19 @@ const allowlist = [
   "zod-validation-error",
 ];
 
+async function runMigration() {
+  const { execSync } = await import("child_process");
+  console.log("running production migration...");
+  try {
+    execSync("npx tsx script/migrate-production.ts", { stdio: "inherit" });
+  } catch (e) {
+    console.error("Migration failed:", e);
+    throw e;
+  }
+}
+
 async function buildAll() {
+  await runMigration();
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");
