@@ -18,6 +18,19 @@ async function migrateProduction() {
         );
         const tableNames = tables.map((r: any) => r.table_name);
 
+        if (!tableNames.includes('sessions')) {
+          console.log("[migrate] Creating sessions table...");
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS sessions (
+              sid varchar NOT NULL COLLATE "default",
+              sess json NOT NULL,
+              expire timestamp(6) NOT NULL,
+              CONSTRAINT sessions_pkey PRIMARY KEY (sid)
+            )
+          `);
+          await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_expire ON sessions (expire)`);
+        }
+
         if (!tableNames.includes('organisations')) {
           console.log("[migrate] Creating organisations table...");
           await client.query(`
@@ -49,6 +62,17 @@ async function migrateProduction() {
 
       console.log("[migrate] users.id is integer — running full migration...");
       await client.query('BEGIN');
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          sid varchar NOT NULL COLLATE "default",
+          sess json NOT NULL,
+          expire timestamp(6) NOT NULL,
+          CONSTRAINT sessions_pkey PRIMARY KEY (sid)
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_expire ON sessions (expire)`);
+      console.log("[migrate] Created sessions table");
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS organisations (
