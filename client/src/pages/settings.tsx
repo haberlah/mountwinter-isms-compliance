@@ -269,9 +269,12 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ["/api/documents/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/organisation-controls"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      const storageWarning = data.storageCleanedCount < data.deletedCount
+        ? ` (${data.deletedCount - data.storageCleanedCount} file${data.deletedCount - data.storageCleanedCount !== 1 ? "s" : ""} could not be removed from storage)`
+        : "";
       toast({
         title: "Documents Cleared",
-        description: `${data.deletedCount} document${data.deletedCount !== 1 ? "s" : ""} permanently removed`,
+        description: `${data.deletedCount} document${data.deletedCount !== 1 ? "s" : ""} permanently removed${storageWarning}`,
       });
     },
     onError: (error: any) => {
