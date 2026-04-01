@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// claude-sonnet-4-5-20250929 is the model requested by the user
-export const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
+// claude-opus-4-6 is the model requested by the user
+export const DEFAULT_MODEL = "claude-opus-4-6";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
